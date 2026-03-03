@@ -79,6 +79,37 @@ function analyzeFile(filePath: string): FileStats {
   };
 }
 
+function aggregateByDirectory(fileStats: FileStats[]): DirectoryStats[] {
+  const dirMap = new Map<string, DirectoryStats>();
+  const srcPrefix = join(process.cwd(), 'src') + '/';
+
+  for (const file of fileStats) {
+    const relativePath = file.path.replace(srcPrefix, '');
+    const parts = relativePath.split('/');
+    const dirName = parts.length > 1 ? parts[0] : '(root)';
+
+    if (!dirMap.has(dirName)) {
+      dirMap.set(dirName, {
+        name: dirName,
+        fileCount: 0,
+        totalLines: 0,
+        codeLines: 0,
+        emptyLines: 0,
+        commentLines: 0,
+      });
+    }
+
+    const dirStats = dirMap.get(dirName)!;
+    dirStats.fileCount++;
+    dirStats.totalLines += file.totalLines;
+    dirStats.codeLines += file.codeLines;
+    dirStats.emptyLines += file.emptyLines;
+    dirStats.commentLines += file.commentLines;
+  }
+
+  return Array.from(dirMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function main() {
   const srcDir = join(process.cwd(), 'src');
 
@@ -112,6 +143,19 @@ function main() {
     { totalLines: 0, codeLines: 0, emptyLines: 0, commentLines: 0 }
   );
 
+  const dirStats = aggregateByDirectory(fileStats);
+
+  console.log('');
+  console.log('📂 按目录统计');
+  console.log('');
+  for (const dir of dirStats) {
+    console.log(
+      `   ${dir.name.padEnd(15)} ` +
+        `文件: ${String(dir.fileCount).padStart(3)}  ` +
+        `代码: ${dir.codeLines.toLocaleString().padStart(6)}  ` +
+        `总计: ${dir.totalLines.toLocaleString().padStart(6)}`
+    );
+  }
   console.log('');
   console.log('📈 总体统计');
   console.log('');
