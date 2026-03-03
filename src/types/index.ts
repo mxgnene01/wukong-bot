@@ -81,22 +81,16 @@ export interface QueueTask {
   maxRetries: number;
   createdAt: number;
   scheduledTaskId?: string;
+  // 多 Agent 协作扩展
+  sessionKey?: string;
+  agentId?: string;
+  skillId?: string;
+  correlationId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 // 任务状态
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'timeout';
-
-// 队列任务
-export interface QueueTask {
-  id: string;
-  type: 'message' | 'scheduled';
-  context: ChatContext;
-  content: string;
-  retryCount: number;
-  maxRetries: number;
-  createdAt: number;
-  scheduledTaskId?: string;
-}
 
 // 历史消息
 export interface HistoryMessage {
@@ -135,6 +129,24 @@ export interface PendingTask {
   startedAt?: number;
   lastHeartbeatAt?: number;
   createdAt: number;
+  // 多 Agent 协作扩展
+  sessionKey?: string;
+  agentId?: string;
+}
+
+// Agent 消息类型
+export interface AgentMessage {
+  id: number;
+  fromSession: string;
+  toSession: string;
+  message: string;
+  messageType: 'text' | 'task_result' | 'task_request' | 'status_update';
+  correlationId: string | null;
+  status: 'pending' | 'read' | 'expired' | 'failed';
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  readAt: string | null;
+  expiresAt: string | null;
 }
 
 // 定时任务

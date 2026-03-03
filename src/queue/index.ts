@@ -14,17 +14,43 @@ class TaskQueue {
   private db = getDB();
 
   enqueue(type: 'message' | 'scheduled', context: ChatContext, content: string, attachments?: MessageAttachment[], scheduledTaskId?: string): string {
-    const taskId = crypto.randomUUID();
-    const task: QueueTask = {
-      id: taskId,
+    return this.enqueueTask({
       type,
       context,
       content,
       attachments,
+      scheduledTaskId
+    });
+  }
+
+  enqueueTask(params: {
+    type: 'message' | 'scheduled';
+    context: ChatContext;
+    content: string;
+    attachments?: MessageAttachment[];
+    scheduledTaskId?: string;
+    sessionKey?: string;
+    agentId?: string;
+    skillId?: string;
+    correlationId?: string;
+    metadata?: Record<string, unknown>;
+  }): string {
+    const taskId = crypto.randomUUID();
+    const task: QueueTask = {
+      id: taskId,
+      type: params.type,
+      context: params.context,
+      content: params.content,
+      attachments: params.attachments,
       retryCount: 0,
       maxRetries: config.maxRetries,
       createdAt: Date.now(),
-      scheduledTaskId,
+      scheduledTaskId: params.scheduledTaskId,
+      sessionKey: params.sessionKey,
+      agentId: params.agentId,
+      skillId: params.skillId,
+      correlationId: params.correlationId,
+      metadata: params.metadata,
     };
 
     // 1. 持久化到数据库

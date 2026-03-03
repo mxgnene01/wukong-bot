@@ -11,7 +11,10 @@ import { sendCard, updateCard, sendMessageSmart, shouldUseCard } from '../lark/c
 import { addTypingIndicator, removeTypingIndicator, startKeepalive, stopKeepalive, type TypingIndicatorState } from '../lark/typing';
 import { buildProgressCard, buildResultCard, buildErrorCard } from '../cards';
 import { logger } from '../utils/logger';
-import type { QueueTask, TaskStatus } from '../types';
+import { getQueue } from '../queue';
+import { makeSessionKey, parseSessionKey } from '../agent/session';
+import { parseAgentCommands } from '../agent/command-parser';
+import type { QueueTask, TaskStatus, AgentMessage } from '../types';
 
 export interface TaskExecutorOptions {
   onProgress?: (taskId: string, status: TaskStatus, message: string, percentage?: number) => Promise<void>;
@@ -50,8 +53,48 @@ export class TaskExecutor {
 
       await this.updateProgress(taskId, 'processing', '正在初始化...', 5);
 
+      // 确定 Session Key
+      const agentId = task.agentId || 'main';
+      const sessionKey = task.sessionKey || makeSessionKey(agentId, task.context.userId);
+
+      // 读取收件箱
+      const inboxMessages = this.db.readAgentMessages(sessionKey);
+      const inboxSection = this.formatInboxForPrompt(inboxMessages);
+      
+      const agentToolsSection = `
+## Agent 通信工具
+
+你可以与其他 Agent 协作。使用以下格式发送消息：
+
+### 发送消息给其他 Agent
+\`\`\`
+[AGENT_SEND to="agent:<agentId>:<context>" type="<message_type>"]
+消息内容
+[/AGENT_SEND]
+\`\`\`
+
+参数说明：
+- to: 目标 Agent 的 session key
+- type: 消息类型，可选值：text（普通消息）、task_result（任务结果）、task_request（任务请求）、status_update（状态更新）
+
+### 标记任务完成
+当你完成当前任务时，输出：
+\`\`\`
+[TASK_DONE status="success"]
+任务结果摘要（会传递给下一个 Agent 或返回给用户）
+[/TASK_DONE]
+\`\`\`
+
+如果任务失败：
+\`\`\`
+[TASK_DONE status="failed" reason="失败原因"]
+错误详情
+[/TASK_DONE]
+\`\`\`
+`;
+
       // 获取或创建会话
-      const session = this.sessionManager.getOrCreateSession(task.context);
+      const session = this.sessionManager.getOrCreateSession(task.context, agentId);
       logger.log('[Executor] Current session - sessionId:', session.sessionId, 'claudeSessionId:', session.claudeSessionId);
 
       // 获取会话记录器
@@ -73,7 +116,7 @@ export class TaskExecutor {
 
       // 构建系统提示
       const systemPrompt = this.memoryManager.buildSystemPrompt(session);
-      const fullSystemPrompt = [skillPrompt, systemPrompt].filter(Boolean).join('\n\n');
+      const fullSystemPrompt = [skillPrompt, systemPrompt, agentToolsSection, inboxSection].filter(Boolean).join('\n\n---\n\n');
 
       // 保存当前用户消息到历史记录（同时加入长期记忆队列）
       this.memoryManager.saveUserMessage(session.sessionId, task.content, session.userId);
@@ -93,6 +136,45 @@ export class TaskExecutor {
         resumeSessionId: session.claudeSessionId,
         skipPermissions: true,
       });
+
+      // 解析 Agent 命令
+      if (result.success) {
+        const commands = parseAgentCommands(result.output);
+        for (const cmd of commands) {
+          if (cmd.type === 'AGENT_SEND') {
+            this.db.sendAgentMessage({
+              fromSession: sessionKey,
+              toSession: cmd.to!,
+              message: cmd.content,
+              messageType: cmd.messageType as any || 'text',
+              correlationId: cmd.correlationId || task.correlationId,
+              metadata: cmd.metadata,
+            });
+
+            if (cmd.to) {
+              this.triggerAgentIfNeeded(cmd.to, cmd.content);
+            }
+          } else if (cmd.type === 'TASK_DONE') {
+            // 如果是工作流任务，回复给工作流引擎
+            if (task.metadata?.workflowId && task.correlationId) {
+              const replyTo = `workflow:${task.metadata.runId}`;
+              logger.log(`[Executor] Task done, replying to workflow engine: ${replyTo}, correlationId: ${task.correlationId}`);
+              
+            this.db.sendAgentMessage({
+              fromSession: sessionKey,
+              toSession: replyTo,
+              message: cmd.content,
+              messageType: 'task_result',
+              correlationId: task.correlationId,
+              metadata: {
+                status: cmd.status,
+                reason: cmd.reason
+              }
+            });
+            }
+          }
+        }
+      }
 
       // 简单重试：如果是 "No conversation found" 错误，清除 sessionId 后重试一次
       if (!result.success && result.error && result.error.includes('No conversation found')) {
@@ -277,5 +359,27 @@ export class TaskExecutor {
     } else {
       await sendCard(task.context, buildErrorCard(error, taskId));
     }
+  }
+
+  private formatInboxForPrompt(messages: AgentMessage[]): string {
+    if (messages.length === 0) return '';
+
+    const lines = messages.map(m => {
+      const from = m.fromSession;
+      const time = m.createdAt;
+      const type = m.messageType !== 'text' ? ` [${m.messageType}]` : '';
+      return `### 来自 ${from}${type}（${time}）\n${m.message}`;
+    });
+
+    return `## 📬 收件箱 — 来自其他 Agent 的消息\n\n以下是其他 Agent 发给你的消息，请根据内容决定如何处理：\n\n${lines.join('\n\n---\n\n')}`;
+  }
+
+  private triggerAgentIfNeeded(toSession: string, messageContent: string) {
+    const parsed = parseSessionKey(toSession);
+    if (!parsed) return;
+
+    // TODO: 实现更复杂的触发逻辑
+    // 目前仅记录日志，后续可以结合任务队列自动创建任务
+    logger.log(`[Executor] Triggering agent ${toSession} with message: ${messageContent.substring(0, 50)}...`);
   }
 }

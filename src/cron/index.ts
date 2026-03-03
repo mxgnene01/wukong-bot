@@ -47,7 +47,7 @@ function triggerScheduledTask(task: ScheduledTask) {
   const queue = getQueue();
 
   // 只调用 queue.enqueue，它内部已经会处理数据库持久化
-  queue.enqueue('scheduled', task.context, task.content, task.id);
+  queue.enqueue('scheduled', task.context, task.content, undefined, task.id);
 }
 
 export function stopAllTasks() {
