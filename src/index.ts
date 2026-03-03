@@ -8,11 +8,21 @@ import { createEventSource, shouldUseCard, sendText } from './lark/client';
 import { createDefaultPipeline, type MiddlewareContext } from './middleware';
 import { getQueue } from './queue';
 import { sendCard } from './lark/client';
-import { buildWelcomeCard, buildProgressCard } from './cards';
+import { buildWelcomeCard, buildProgressCard, buildDailyStatsCard } from './cards';
 import { logger } from './utils/logger';
 import { getMemoryManager } from './session/memory';
 import { handleWorkflowTrigger } from './gateway/workflow-trigger';
-import type { LarkMessageEvent } from './types';
+import {
+  startDailyStatsScheduler,
+  stopDailyStatsScheduler,
+  setDailyStatsContext,
+  setDailyStatsEnabled,
+  isDailyStatsEnabled,
+  getDailyStatsContext,
+  triggerDailyStatsManually,
+  calculateDailyStats,
+} from './stats';
+import type { LarkMessageEvent, ChatContext } from './types';
 
 // 最先加载配置，确保 logger 等其他模块可以使用
 loadConfig();
@@ -38,6 +48,7 @@ getSkillLoader().start();
 
 const workerEngine = startWorker();
 startCronScheduler();
+startDailyStatsScheduler();
 
 async function main() {
   const eventSource = await createEventSource();
@@ -89,6 +100,10 @@ async function handleEvent(event: LarkMessageEvent) {
 
   // 检查工作流触发
   if (await handleWorkflowTrigger(ctx.context.userId, ctx.content)) {
+    return;
+  }
+
+  if (await handleDailyStatsCommand(ctx.content, ctx.context)) {
     return;
   }
 
@@ -175,12 +190,71 @@ async function handleAgentIdentityCommand(content: string, context: any): Promis
   return false;
 }
 
+/**
+ * 处理每日统计命令
+ */
+async function handleDailyStatsCommand(content: string, context: ChatContext): Promise<boolean> {
+  const lowerContent = content.toLowerCase().trim();
+
+  // 启用每日统计
+  if (lowerContent === '开启每日统计' || lowerContent === '启用每日统计') {
+    setDailyStatsContext(context);
+    setDailyStatsEnabled(true);
+    startDailyStatsScheduler();
+    await sendText(
+      context,
+      '✅ 每日统计已开启！\n\n我会在每天 23:00 向你发送当天的 Token 消耗和交互统计报告。',
+      context.messageId
+    );
+    return true;
+  }
+
+  // 关闭每日统计
+  if (lowerContent === '关闭每日统计' || lowerContent === '停用每日统计') {
+    setDailyStatsEnabled(false);
+    stopDailyStatsScheduler();
+    await sendText(
+      context,
+      '❌ 每日统计已关闭。',
+      context.messageId
+    );
+    return true;
+  }
+
+  // 查看统计状态
+  if (lowerContent === '统计状态' || lowerContent === '每日统计状态') {
+    const enabled = isDailyStatsEnabled();
+    const ctx = getDailyStatsContext();
+    let status = enabled ? '✅ 已开启' : '❌ 已关闭';
+    let info = '';
+    if (ctx) {
+      info = `\n\n通知目标: ${ctx.chatType === 'p2p' ? '私聊' : '群聊'}`;
+    }
+    await sendText(
+      context,
+      `📊 每日统计状态\n\n状态: ${status}${info}\n\n发送时间: 每天 23:00`,
+      context.messageId
+    );
+    return true;
+  }
+
+  // 立即查看今日统计
+  if (lowerContent === '查看今日统计' || lowerContent === '今日统计' || lowerContent === '统计') {
+    const stats = calculateDailyStats();
+    await sendCard(context, buildDailyStatsCard(stats), context.messageId);
+    return true;
+  }
+
+  return false;
+}
+
 main().catch(logger.error);
 
 process.on('SIGINT', async () => {
   logger.log('\nShutting down gracefully...');
   stopWorker();
   stopAllTasks();
+  stopDailyStatsScheduler();
   db.close();
   process.exit(0);
 });
@@ -189,6 +263,7 @@ process.on('SIGTERM', async () => {
   logger.log('\nShutting down gracefully...');
   stopWorker();
   stopAllTasks();
+  stopDailyStatsScheduler();
   db.close();
   process.exit(0);
 });
