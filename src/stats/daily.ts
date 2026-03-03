@@ -52,7 +52,7 @@ export interface DailyStats {
 
 function getSessionsDir(): string {
   const workDir = config.app.workDir;
-  return join(workDir, 'workspace', 'agents', 'sessions');
+  return join(workDir, 'agents', 'sessions');
 }
 
 function getDateString(date: Date): string {
