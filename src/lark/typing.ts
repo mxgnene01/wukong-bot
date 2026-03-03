@@ -96,7 +96,7 @@ function getBackoffCodeFromResponse(response: any): number | undefined {
  */
 export async function addTypingIndicator(messageId: string): Promise<TypingIndicatorState> {
   const client = getLarkClient();
-  logger.info('[Typing] Adding typing indicator to message:', messageId);
+  logger.debug('[Typing] Adding typing indicator to message:', messageId);
 
   try {
     const response = await client.im.messageReaction.create({
@@ -113,7 +113,7 @@ export async function addTypingIndicator(messageId: string): Promise<TypingIndic
     }
 
     const reactionId = response.data?.reaction_id ?? null;
-    logger.info('[Typing] Added typing indicator, reactionId:', reactionId);
+    logger.debug('[Typing] Added typing indicator, reactionId:', reactionId);
     return { messageId, reactionId };
   } catch (err) {
     if (isFeishuBackoffError(err)) {
@@ -145,7 +145,7 @@ export async function removeTypingIndicator(state: TypingIndicatorState): Promis
   }
 
   const client = getLarkClient();
-  logger.info('[Typing] Removing typing indicator from message:', state.messageId);
+  logger.debug('[Typing] Removing typing indicator from message:', state.messageId);
 
   try {
     const result = await client.im.messageReaction.delete({
@@ -160,7 +160,7 @@ export async function removeTypingIndicator(state: TypingIndicatorState): Promis
       throw new FeishuBackoffError(backoffCode);
     }
 
-    logger.info('[Typing] Removed typing indicator successfully');
+    logger.debug('[Typing] Removed typing indicator successfully');
   } catch (err) {
     if (isFeishuBackoffError(err)) {
       logger.warn('[Typing] Feishu backoff error on remove:', err.code);
