@@ -114,7 +114,7 @@ async function handleEvent(event: LarkMessageEvent) {
     return;
   }
 
-  const taskId = queue.enqueue('message', ctx.context, ctx.content);
+  const taskId = queue.enqueue('message', ctx.context, ctx.content, ctx.attachments);
 
   // 对于简单对话，不显示进度卡片，直接让最终结果智能选择模式
   if (isComplexTask(ctx.content)) {
