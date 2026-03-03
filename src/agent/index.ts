@@ -51,6 +51,18 @@ export class ClaudeAgent {
       }
       env.NO_COLOR = '1';
 
+      // 动态配置 ANTHROPIC_BASE_URL
+      // 如果启用了本地代理，则指向代理地址；否则删除该环境变量（使用默认或系统配置）
+      if (process.env.ENABLE_LOCAL_PROXY === 'true') {
+        const port = process.env.PROXY_PORT || '8080';
+        env.ANTHROPIC_BASE_URL = `http://localhost:${port}`;
+        logger.debug('[Agent] Using local proxy:', env.ANTHROPIC_BASE_URL);
+      } else {
+        // 显式删除，防止继承了外部环境的配置
+        delete env.ANTHROPIC_BASE_URL;
+        logger.debug('[Agent] Using default Anthropic API');
+      }
+
       const childProcess = spawn({
         cmd: [this.claudePath, ...args],
         cwd: this.workDir,
