@@ -7,10 +7,12 @@ ignore = [
   "node_modules",
   "dist",
   "data",
+  "docs",
   "workspace",
   "logs",
   "backups",
   "*.log",
   ".DS_Store",
-  ".claude"
+  ".claude",
+  ".trae"
 ]

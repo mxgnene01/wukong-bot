@@ -1,4 +1,5 @@
 import type { TaskStatus } from '../types';
+import type { DailyStats } from '../stats/daily';
 
 interface CardElement {
   tag: string;
@@ -222,6 +223,109 @@ function getStatusTitle(status: TaskStatus): string {
     timeout: '执行超时',
   };
   return titles[status] || '处理中';
+}
+
+export function buildDailyStatsCard(stats: DailyStats): LarkCard {
+  const elements: CardElement[] = [];
+
+  // 摘要部分
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content: `📊 **每日统计报告**\n\n**日期**: ${stats.date}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // 消息统计
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content:
+        `**🔢 消息统计**\n` +
+        `• 用户消息: ${stats.userMessageCount.toLocaleString()}\n` +
+        `• 助手消息: ${stats.assistantMessageCount.toLocaleString()}\n` +
+        `• 会话数量: ${stats.totalSessionCount.toLocaleString()}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // Token 统计
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content:
+        `**💰 Token 使用**\n` +
+        `• 输入: ${stats.totalInputTokens.toLocaleString()}\n` +
+        `• 输出: ${stats.totalOutputTokens.toLocaleString()}\n` +
+        `• 缓存读取: ${stats.totalCacheReadTokens.toLocaleString()}\n` +
+        `• 缓存写入: ${stats.totalCacheWriteTokens.toLocaleString()}\n` +
+        `• **总计**: ${stats.totalTokens.toLocaleString()}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // 成本
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content: `**💸 总成本**\n\n$${stats.totalCostUsd.toFixed(4)}`,
+    },
+  });
+
+  // 会话详情（如果有）
+  if (stats.sessions.length > 0) {
+    elements.push({ tag: 'hr' });
+
+    let sessionDetails = '**📋 会话详情**\n';
+    for (const session of stats.sessions.slice(0, 5)) {
+      sessionDetails +=
+        `• ${session.sessionId.slice(0, 8)}...: ` +
+        `${session.totalTokens.toLocaleString()} tokens, ` +
+        `$${session.costUsd.toFixed(4)}\n`;
+    }
+    if (stats.sessions.length > 5) {
+      sessionDetails += `... 还有 ${stats.sessions.length - 5} 个会话`;
+    }
+
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: sessionDetails,
+      },
+    });
+  }
+
+  elements.push({
+    tag: 'note',
+    elements: [
+      { tag: 'plain_text', content: `生成时间: ${new Date().toLocaleString('zh-CN')}` },
+    ],
+  });
+
+  return {
+    config: {
+      wide_screen_mode: true,
+      enable_forward: true,
+      update_multi: false,
+    },
+    header: {
+      title: {
+        tag: 'plain_text',
+        content: '📊 每日统计报告',
+      },
+      template: 'blue',
+    },
+    elements,
+  };
 }
 
 export type { LarkCard };
