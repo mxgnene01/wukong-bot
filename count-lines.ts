@@ -37,6 +37,48 @@ function findAllTsFiles(dir: string, fileList: string[] = []): string[] {
   return fileList;
 }
 
+function isEmptyLine(line: string): boolean {
+  return line.trim().length === 0;
+}
+
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('//') || (trimmed.startsWith('/*') && trimmed.endsWith('*/'));
+}
+
+function isCodeLine(line: string): boolean {
+  return !isEmptyLine(line) && !isCommentLine(line);
+}
+
+function analyzeFile(filePath: string): FileStats {
+  const content = readFileSync(filePath, 'utf-8');
+  const lines = content.split('\n');
+
+  let totalLines = 0;
+  let codeLines = 0;
+  let emptyLines = 0;
+  let commentLines = 0;
+
+  for (const line of lines) {
+    totalLines++;
+    if (isEmptyLine(line)) {
+      emptyLines++;
+    } else if (isCommentLine(line)) {
+      commentLines++;
+    } else {
+      codeLines++;
+    }
+  }
+
+  return {
+    path: filePath,
+    totalLines,
+    codeLines,
+    emptyLines,
+    commentLines,
+  };
+}
+
 function main() {
   const srcDir = join(process.cwd(), 'src');
 
@@ -46,14 +88,42 @@ function main() {
   console.log('');
 
   const tsFiles = findAllTsFiles(srcDir);
-  console.log(`Found ${tsFiles.length} .ts files`);
+
+  if (tsFiles.length === 0) {
+    console.log('❌ 没有找到 .ts 文件');
+    process.exit(1);
+  }
+
+  console.log('📈 分析文件...');
+  const fileStats: FileStats[] = [];
+
+  for (const file of tsFiles) {
+    const stats = analyzeFile(file);
+    fileStats.push(stats);
+  }
+
+  const totalStats = fileStats.reduce(
+    (acc, curr) => ({
+      totalLines: acc.totalLines + curr.totalLines,
+      codeLines: acc.codeLines + curr.codeLines,
+      emptyLines: acc.emptyLines + curr.emptyLines,
+      commentLines: acc.commentLines + curr.commentLines,
+    }),
+    { totalLines: 0, codeLines: 0, emptyLines: 0, commentLines: 0 }
+  );
+
   console.log('');
-  for (const file of tsFiles.slice(0, 5)) {
-    console.log(`  - ${file}`);
-  }
-  if (tsFiles.length > 5) {
-    console.log(`  ... and ${tsFiles.length - 5} more`);
-  }
+  console.log('📈 总体统计');
+  console.log('');
+  console.log(`   总文件数: ${tsFiles.length.toLocaleString()}`);
+  console.log(`   总行数: ${totalStats.totalLines.toLocaleString()}`);
+  console.log(`   有效代码行: ${totalStats.codeLines.toLocaleString()}`);
+  console.log(`   空行: ${totalStats.emptyLines.toLocaleString()}`);
+  console.log(`   注释行: ${totalStats.commentLines.toLocaleString()}`);
+  console.log('');
+  console.log('='.repeat(70));
+  console.log(`✅ 有效代码行数: ${totalStats.codeLines.toLocaleString()}`);
+  console.log('='.repeat(70));
 }
 
 main();
