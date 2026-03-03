@@ -1,9 +1,11 @@
 
 import { WorkflowEngine } from '../workflow/engine';
 import { sendText } from '../lark/client';
+import { getConfig } from '../config';
 import path from 'path';
 
 const workflowEngine = new WorkflowEngine();
+const config = getConfig();
 
 // 简单的事件监听，避免重复添加
 let listenersAdded = false;
@@ -12,7 +14,7 @@ let listenersAdded = false;
 let initialized = false;
 export async function initWorkflowEngine() {
   if (initialized) return;
-  const workflowsDir = path.resolve(process.cwd(), 'workspace/workflows');
+  const workflowsDir = path.resolve(process.cwd(), config.workflow.workflowsDir);
   await workflowEngine.loadWorkflowsFromDir(workflowsDir);
   
   if (!listenersAdded) {
