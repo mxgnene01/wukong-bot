@@ -7,7 +7,6 @@ const app = express();
 app.use(express.json({ limit: '50mb' })); // 支持大图片 Payload
 
 const ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/coding';
-const ARK_API_KEY = process.env.ARK_API_KEY;
 
 // 检测请求中是否包含图片
 function hasImageContent(messages: any[]): boolean {
@@ -65,28 +64,36 @@ app.post('/v1/messages', async (req, res) => {
   }
 
   // 如果没有配置 ARK_API_KEY，直接报错
-  if (!ARK_API_KEY) {
-    logger.error(`[Proxy:${requestId}] ARK_API_KEY not configured`);
-    res.status(500).json({ 
-      error: {
-        type: 'server_error',
-        message: 'ARK_API_KEY is not configured in .env'
-      }
-    });
-    return;
-  }
+  // if (!ARK_API_KEY) {
+  //   logger.error(`[Proxy:${requestId}] ARK_API_KEY not configured`);
+  //   res.status(500).json({ 
+  //     error: {
+  //       type: 'server_error',
+  //       message: 'ARK_API_KEY is not configured in .env'
+  //     }
+  //   });
+  //   return;
+  // }
 
   try {
     // 3. 转发到火山方舟
     const upstreamUrl = process.env.UPSTREAM_BASE_URL || ARK_BASE_URL;
     logger.info(`[Proxy:${requestId}] Forwarding to ${upstreamUrl}/chat/completions`);
     
+    // 透传所有 Header（除了 host 和 content-length，node-fetch 会自动处理）
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+        if (key !== 'host' && key !== 'content-length' && typeof value === 'string') {
+            headers[key] = value;
+        }
+    }
+    
+    // 强制设置为 JSON
+    headers['Content-Type'] = 'application/json';
+
     const arkResp = await fetch(`${upstreamUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ARK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
