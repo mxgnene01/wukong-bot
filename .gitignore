@@ -3,6 +3,8 @@ dist
 data
 logs
 workspace/logs
+workspace/agents
+workspace/sessions
 backups
 .env
 .DS_Store
