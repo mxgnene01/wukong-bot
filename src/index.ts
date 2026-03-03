@@ -25,9 +25,15 @@ import {
 import type { LarkMessageEvent, ChatContext } from './types';
 
 import { startProxyServer } from './proxy/server';
+import { runCleanup } from './utils/cleanup';
 
 // 最先加载配置，确保 logger 等其他模块可以使用
 loadConfig();
+
+// 启动时清理旧日志和缓存
+runCleanup().catch(err => {
+  console.error('Cleanup failed:', err);
+});
 
 // 启动本地代理服务 (如果启用了)
 if (process.env.ENABLE_LOCAL_PROXY === 'true') {
