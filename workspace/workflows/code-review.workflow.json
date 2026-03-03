@@ -24,16 +24,16 @@
       "id": "code",
       "name": "编码 (TDD)",
       "agentId": "programmer",
-      "skillId": "tdd",
-      "task": "请在 ${inputs.workingDirectory} 目录中实现以下功能：\n\n${inputs.task}\n\n请严格遵循 TDD (Test-Driven Development) 流程：\n1. RED: 先写失败的测试。\n2. GREEN: 写最少的代码通过测试。\n3. REFACTOR: 重构代码。\n\n完成后，输出你修改的文件列表和变更摘要。"
+      "skillId": "test-driven-development",
+      "task": "请在 ${inputs.workingDirectory} 目录中实现以下功能：\n\n${inputs.task}\n\n请严格遵循 'test-driven-development' 技能的流程：\n1. RED: 先写失败的测试。\n2. GREEN: 写最少的代码通过测试。\n3. REFACTOR: 重构代码。\n\n完成后，输出你修改的文件列表和变更摘要。"
     },
     {
       "id": "review",
       "name": "代码审查（可迭代）",
       "agentId": "reviewer",
-      "skillId": "code-review",
+      "skillId": "requesting-code-review",
       "dependsOn": ["code"],
-      "task": "请审查以下代码变更：\n\n${steps.code.output}\n\n工作目录：${inputs.workingDirectory}\n\n请使用 'code-review' 技能的标准进行严格审查。\n\n重点检查：安全性、正确性、可维护性。\n\n输出必须符合 JSON 格式：{\"approved\": boolean, \"summary\": \"...\", \"issues\": [...]}",
+      "task": "请审查以下代码变更：\n\n${steps.code.output}\n\n工作目录：${inputs.workingDirectory}\n\n请使用 'requesting-code-review' 技能的标准进行严格审查。\n\n重点检查：安全性、正确性、可维护性。\n\n输出必须符合 JSON 格式：{\"approved\": boolean, \"summary\": \"...\", \"issues\": [...]}",
       "loop": {
         "maxIterations": 3,
         "continueIf": "lastOutput.approved !== true"
@@ -43,7 +43,7 @@
       "id": "test",
       "name": "运行测试",
       "agentId": "tester",
-      "skillId": "debugging",
+      "skillId": "systematic-debugging",
       "dependsOn": ["review"],
       "condition": "${steps.review.output.approved} === true",
       "task": "请在 ${inputs.workingDirectory} 目录中运行测试套件，验证以下功能的实现：\n\n${inputs.task}\n\n1. 运行所有相关测试。\n2. 如果测试失败，请使用 'systematic-debugging' 技能进行排查。\n3. 输出测试结果摘要。\n\n输出 JSON 格式：{\"passed\": true/false, \"summary\": \"测试摘要\", \"coverage\": \"覆盖率\"}"
