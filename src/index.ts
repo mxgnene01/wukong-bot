@@ -123,6 +123,7 @@ async function handleEvent(event: LarkMessageEvent) {
   const taskId = queue.enqueue('message', ctx.context, ctx.content, ctx.attachments);
 
   // 对于简单对话，不显示进度卡片，直接让最终结果智能选择模式
+  // 仅在明确检测到复杂任务关键字时才显示
   if (isComplexTask(ctx.content)) {
     const cardMessageId = await sendCard(
       ctx.context,
@@ -157,6 +158,7 @@ function isComplexTask(content: string): boolean {
     '安装', 'install', 'npm', 'yarn', 'bun', 'pip',
     '运行', '执行', 'run', 'execute', 'command', '命令',
     '文件', 'file', '目录', 'directory', 'folder',
+    '统计', '分析', 'analyze', 'stats', 'count',
   ];
 
   for (const keyword of complexKeywords) {
