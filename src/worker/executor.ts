@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import { getQueue } from '../queue';
 import { makeSessionKey, parseSessionKey } from '../agent/session';
 import { parseAgentCommands } from '../agent/command-parser';
+import { downloadFile, detectImageType, toBase64 } from '../lark/file';
 import type { QueueTask, TaskStatus, AgentMessage } from '../types';
 
 export interface TaskExecutorOptions {
@@ -127,10 +128,56 @@ export class TaskExecutor {
         timestamp: Date.now(),
       });
 
+      // 处理图片附件：下载并转换为 Base64 传递给 Claude
+      let promptContent = task.content;
+      
+      // 检查是否有图片附件
+      if (task.attachments && task.attachments.length > 0) {
+        const images = task.attachments.filter(att => att.type === 'image');
+        
+        if (images.length > 0 && task.context.messageId) {
+          await this.updateProgress(taskId, 'processing', '正在处理图片...', 30);
+          logger.info(`[Executor] Found ${images.length} images, processing...`);
+          
+          for (const img of images) {
+            try {
+              // 下载图片
+              const buffer = await downloadFile(task.context.messageId, img.fileKey);
+              
+              // 检测格式
+              const type = detectImageType(buffer) || 'jpeg';
+              const mimeType = `image/${type}`;
+              
+              // 转换为 Base64
+              const base64Data = buffer.toString('base64');
+              
+              // 暂时 Claude Code CLI 不支持直接传 image block
+              // 我们将图片保存到本地，并告知 CLI 图片位置
+              // 或者，如果是走本地代理模式，我们可以尝试将图片嵌入到 Prompt 中（这需要 CLI 支持某种特殊语法）
+              
+              // 方案：将图片保存到 workspace/images 目录，并提示 CLI 读取
+              const imageDir = `${this.config.app.workDir}/images`;
+              const imagePath = `${imageDir}/${img.fileKey}.${type}`;
+              
+              // 确保目录存在
+              await Bun.write(imagePath, buffer);
+              logger.info(`[Executor] Saved image to ${imagePath}`);
+              
+              // 追加提示到 Prompt
+              promptContent += `\n\n[System Note]\nUser uploaded an image. It has been saved to: ${imagePath}\nPlease read and analyze this image file to understand the user's request.`;
+              
+            } catch (e) {
+              logger.error(`[Executor] Failed to process image ${img.fileKey}:`, e);
+              promptContent += `\n\n[System Error] Failed to download/process image: ${img.fileKey}`;
+            }
+          }
+        }
+      }
+
       await this.updateProgress(taskId, 'processing', '正在调用 Claude Code CLI...', 40);
 
       // 执行 Agent
-      let result = await this.agent.execute(task.content, {
+      let result = await this.agent.execute(promptContent, {
         systemPrompt: fullSystemPrompt,
         timeout: this.config.claude.timeout,
         resumeSessionId: session.claudeSessionId,
