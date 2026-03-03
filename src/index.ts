@@ -24,8 +24,15 @@ import {
 } from './stats';
 import type { LarkMessageEvent, ChatContext } from './types';
 
+import { startProxyServer } from './proxy/server';
+
 // 最先加载配置，确保 logger 等其他模块可以使用
 loadConfig();
+
+// 启动本地代理服务 (如果启用了)
+if (process.env.ENABLE_LOCAL_PROXY === 'true') {
+  startProxyServer();
+}
 
 const config = getConfig();
 const db = getDB();
