@@ -3,6 +3,8 @@ dist
 data
 logs
 workspace
+!workspace/workflows/
+!workspace/skills/
 backups
 .env
 .DS_Store

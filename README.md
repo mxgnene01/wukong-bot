@@ -45,6 +45,60 @@ Wukong Bot 不仅仅是一个聊天机器人，它是一个运行在你本地机
         2.  Bot 学会并生成 Skill 文件。
         3.  下次用户只需发送指令（如 `/deploy`），Bot 直接调用该 Skill 自动执行。
 
+### 5. 多智能体协作 (Multi-Agent Collaboration) —— **New!**
+这是一个“确定性工作流编排 + 动态 Agent 通信”的混合架构，让 Bot 能够处理复杂的工程任务。
+
+#### 核心特性
+*   **角色特化**：支持定义 Programmer, Reviewer, Tester 等不同角色的 Agent，每个角色拥有独立的 System Prompt 和技能。
+*   **工作流编排**：通过 JSON 定义复杂的任务流程（支持依赖、条件判断、循环重试）。
+*   **高级技能库**：内置了 TDD（测试驱动开发）、Code Review（代码审查）、Systematic Debugging（系统化调试）等专业工程技能。
+
+#### 交互流程
+```mermaid
+sequenceDiagram
+    participant User
+    participant Gateway
+    participant WorkflowEngine
+    participant Programmer
+    participant Reviewer
+    participant Tester
+
+    User->>Gateway: /workflow code-review-pipeline --task "Add Auth"
+    Gateway->>WorkflowEngine: Start Workflow
+    
+    rect rgb(200, 220, 240)
+        Note over Programmer: Step 1: Coding (TDD)
+        WorkflowEngine->>Programmer: Execute Task (Skill: TDD)
+        Programmer-->>WorkflowEngine: Code + Tests Created
+    end
+
+    loop Code Review Cycle
+        rect rgb(220, 240, 200)
+            Note over Reviewer: Step 2: Review
+            WorkflowEngine->>Reviewer: Review Code (Skill: Code Review)
+            alt Approved
+                Reviewer-->>WorkflowEngine: Approved
+            else Rejected
+                Reviewer-->>WorkflowEngine: Feedback
+                WorkflowEngine->>Programmer: Fix Issues
+            end
+        end
+    end
+
+    rect rgb(240, 200, 220)
+        Note over Tester: Step 3: Testing
+        WorkflowEngine->>Tester: Run Tests (Skill: Debugging)
+        Tester-->>WorkflowEngine: All Passed
+    end
+
+    WorkflowEngine->>User: Notify Completion
+```
+
+#### 如何使用
+1.  **定义工作流**：在 `workspace/workflows/` 下创建 `.workflow.json` 文件。
+2.  **触发工作流**：在飞书中发送 `/workflow <workflow_id> [参数...]`。
+    *   示例：`/workflow code-review-pipeline --task "为 Session 模块添加单元测试" --project "wukong-bot" --workingDirectory "./src/session"`
+
 ## 架构概览
 
 ```mermaid
@@ -62,9 +116,17 @@ graph TD
     end
     
     subgraph "Evolution"
-        ClaudeCLI -->|写入| SkillFiles[workspace/skills/*.md]
+        ClaudeCLI -->|写入| SkillFiles[workspace/skills/*]
         SkillFiles -->|监听加载| Skills
     end
+
+    subgraph "Workflow Engine"
+        WorkflowEngine[Workflow Orchestrator] -->|调度| Queue
+        WorkflowEngine -->|状态持久化| DB[SQLite]
+        WorkflowEngine -->|加载定义| WorkflowFiles[workspace/workflows/*.json]
+    end
+    
+    Gateway -->|触发| WorkflowEngine
     
     ClaudeCLI -->|执行命令| System[操作系统/文件系统]
     ClaudeCLI -->|流式响应| LarkClient[飞书客户端]
@@ -196,6 +258,14 @@ pm2 logs wukong-bot
 - `settings`: 配置项 (含 Agent Identity, User Profile)
 - `pending_tasks`: 待处理任务（崩溃恢复用）
 - `scheduled_tasks`: 定时任务
+- `agent_messages`: Agent 间通信消息
+- `workflow_runs`: 工作流运行状态与历史
+
+## 注意事项
+
+1.  **并发配置**：多智能体协作会同时启动多个任务，请确保 `.env` 中的 `MAX_CONCURRENT_TASKS` 至少为 3。
+2.  **Token 消耗**：工作流会自动执行多个步骤，Token 消耗量较大，请留意 Claude API 额度。
+3.  **工作流文件**：所有工作流定义必须放在 `workspace/workflows/` 目录下，技能文件放在 `workspace/skills/` 目录下。
 
 ## License
 
