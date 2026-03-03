@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x /Users/bytedance/mxg/go/src/code.byted.org/cody-bot/scripts/deploy.sh /Users/bytedance/mxg/go/src/code.byted.org/cody-bot/scripts/backup.sh 2>/dev/null || echo \"Scripts created\")",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:open.feishu.cn)",
+      "WebFetch(domain:open.larkoffice.com)",
+      "Bash(bun install 2>&1)",
+      "Bash(bun build src/index.ts --outdir dist --target bun 2>&1)",
+      "Bash(npm config get prefix 2>&1)",
+      "Bash(/Users/bytedance/.nvm/versions/node/v22.22.0/bin/claude --help 2>&1 | head -100)",
+      "Bash(ai-skills find memory --pure --page 1 2>&1)",
+      "Bash(npx @tiktok-fe/skills find memory --pure --page 1 2>&1 || echo \"Command failed\")",
+      "Bash(npx @tiktok-fe/skills find \"conversation memory\" --pure --page 1 2>&1)",
+      "Bash(npx @tiktok-fe/skills find \"long term memory\" --pure --page 1 2>&1)",
+      "Bash(npx @tiktok-fe/skills find --source wellknown --pure 2>&1 | head -100)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npx @tiktok-fe/skills find \"code review\" --pure --page 1 2>&1 | head -80)",
+      "Bash(npx @tiktok-fe/skills find refactor --pure --page 1 2>&1 | head -80)",
+      "Bash(npx @tiktok-fe/skills find test --pure --page 1 2>&1 | head -80)",
+      "Bash(npx @tiktok-fe/skills find explain --pure --page 1 2>&1 | head -60)",
+      "Bash(npx @tiktok-fe/skills find \"superpowers\" --pure --page 1 2>&1 | head -80)",
+      "Bash(npx @tiktok-fe/skills add obra/superpowers --source github --skill requesting-code-review --project --pure --force 2>&1)",
+      "Bash(npx @tiktok-fe/skills add obra/superpowers --source github --skill test-driven-development --project --pure --force 2>&1)",
+      "Bash(npx @tiktok-fe/skills add obra/superpowers --source github --skill systematic-debugging --project --pure --force 2>&1)",
+      "Bash(npx @tiktok-fe/skills add obra/superpowers --source github --skill brainstorming --project --pure --force 2>&1)",
+      "Bash(npx @tiktok-fe/skills add obra/superpowers --source github --skill writing-plans --project --pure --force 2>&1)",
+      "Bash(ls -la .claude/skills/*/)",
+      "Bash(bun build src/index.ts --outdir /tmp --target bun 2>&1 | head -50)",
+      "Bash(bun build src/index.ts --outdir /tmp 2>&1 | head -50)",
+      "Bash(bun run check_db.ts 2>&1)",
+      "Bash(/Users/bytedance/.nvm/versions/node/v22.22.0/bin/claude --help 2>&1)",
+      "Bash(bun build --no-bundle ./src/agent/index.ts 2>&1)",
+      "Bash(bun build --no-bundle ./src/worker/executor.ts 2>&1 || true)",
+      "Bash(bun build --no-bundle ./src/config/schema.ts 2>&1 && echo \"✓ schema.ts OK\" && bun build --no-bundle ./src/utils/config.ts 2>&1 && echo \"✓ utils/config.ts OK\")",
+      "Bash(bun test_claude.ts 2>&1)",
+      "Bash(bun test_claude_json.ts 2>&1)",
+      "Bash(bunx tsc --noEmit 2>&1)"
+    ]
+  }
+}

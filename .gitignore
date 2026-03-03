@@ -1,0 +1,11 @@
+node_modules
+dist
+data
+logs
+workspace/logs
+backups
+.env
+.DS_Store
+*.log
+*.swp
+*.swo

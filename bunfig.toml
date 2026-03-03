@@ -1,0 +1,16 @@
+# Bun 配置文件
+# https://bun.sh/docs/runtime/bunfig
+
+[watch]
+# 忽略这些目录的文件变化，避免触发不必要的重启
+ignore = [
+  "node_modules",
+  "dist",
+  "data",
+  "workspace",
+  "logs",
+  "backups",
+  "*.log",
+  ".DS_Store",
+  ".claude"
+]

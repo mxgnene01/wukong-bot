@@ -1,0 +1,227 @@
+import type { TaskStatus } from '../types';
+
+interface CardElement {
+  tag: string;
+  text?: { tag: string; content: string };
+  elements?: CardElement[];
+  content?: string;
+  value?: any;
+  [key: string]: any;
+}
+
+interface LarkCard {
+  config?: {
+    wide_screen_mode?: boolean;
+    enable_forward?: boolean;
+    update_multi?: boolean;
+  };
+  header?: {
+    title: { tag: string; content: string };
+    template?: string;
+  };
+  elements: CardElement[];
+}
+
+export function buildProgressCard(
+  status: TaskStatus,
+  message: string,
+  percentage?: number,
+  taskId?: string
+): LarkCard {
+  const template = getStatusTemplate(status);
+  const title = getStatusTitle(status);
+
+  let displayMessage = message;
+  if (percentage !== undefined) {
+    displayMessage = `${message}\n\n进度: ${percentage}%`;
+  }
+
+  const elements: CardElement[] = [
+    {
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: displayMessage,
+      },
+    },
+  ];
+
+  elements.push({
+    tag: 'note',
+    elements: [
+      { tag: 'plain_text', content: `任务 ID: ${taskId || 'N/A'}` },
+      { tag: 'plain_text', content: ` | ` },
+      { tag: 'plain_text', content: `更新时间: ${new Date().toLocaleString('zh-CN')}` },
+    ],
+  });
+
+  return {
+    config: {
+      wide_screen_mode: true,
+      enable_forward: false,
+      update_multi: true,
+    },
+    header: {
+      title: {
+        tag: 'plain_text',
+        content: title,
+      },
+      template,
+    },
+    elements,
+  };
+}
+
+export function buildResultCard(
+  success: boolean,
+  output: string,
+  duration: number,
+  taskId?: string
+): LarkCard {
+  const elements: CardElement[] = [];
+
+  let displayOutput = output;
+  // 飞书卡片文本元素最大支持 30KB，这里放宽限制到 20000 字符
+  if (displayOutput.length > 20000) {
+    displayOutput = displayOutput.slice(0, 20000) + '...\n\n[输出已截断]';
+  }
+
+  // 移除开头可能存在的多余换行符
+  displayOutput = displayOutput.replace(/^[\n\r]+/, '');
+
+  // 修复飞书卡片中 \n\n 无法渲染为换行的问题
+  // 飞书 Markdown 有时需要显式的 <br> 或者特殊的换行处理
+  // 但更常见的问题是 JSON.stringify 后 \n 被转义。
+  // 我们使用全局替换将字面量 "\n" 替换为换行符
+  displayOutput = displayOutput.replace(/\\n/g, '\n').replace(/\\\\n/g, '\\n');
+
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content: success
+        ? `${displayOutput}`
+        : `**执行失败**\n\n\`\`\`\n${displayOutput}\n\`\`\``,
+    },
+  });
+
+  // 只有在非成功状态下才显示分割线和底部信息，
+  // 或者当内容真的很长需要额外信息时。
+  // 对于普通的对话回复，去掉这些会让界面更清爽。
+  if (!success) {
+    elements.push({
+      tag: 'hr',
+    });
+
+    elements.push({
+      tag: 'note',
+      elements: [
+        { tag: 'plain_text', content: `耗时: ${(duration / 1000).toFixed(1)}s` },
+        { tag: 'plain_text', content: ` | ` },
+        { tag: 'plain_text', content: `任务 ID: ${taskId || 'N/A'}` },
+      ],
+    });
+  }
+
+  const card: LarkCard = {
+    config: {
+      wide_screen_mode: true,
+      enable_forward: true,
+      update_multi: true,
+    },
+    elements,
+  };
+
+  // 只有在失败时才显示 Header，成功时像普通消息一样展示
+  if (!success) {
+    card.header = {
+      title: {
+        tag: 'plain_text',
+        content: '执行失败',
+      },
+      template: 'red',
+    };
+  }
+
+  return card;
+}
+
+export function buildErrorCard(error: string, taskId?: string): LarkCard {
+  return {
+    config: {
+      wide_screen_mode: true,
+      enable_forward: false,
+      update_multi: true,
+    },
+    header: {
+      title: {
+        tag: 'plain_text',
+        content: '出错了',
+      },
+      template: 'red',
+    },
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**错误信息**:\n\n\`\`\`\n${error}\n\`\`\``,
+        },
+      },
+      {
+        tag: 'note',
+        elements: [
+          { tag: 'plain_text', content: `任务 ID: ${taskId || 'N/A'}` },
+        ],
+      },
+    ],
+  };
+}
+
+export function buildWelcomeCard(): any {
+  return {
+    config: {
+      wide_screen_mode: true,
+    },
+    header: {
+      template: 'blue',
+      title: {
+        content: '👋 你好！我是 Wukong Bot',
+        tag: 'plain_text',
+      },
+    },
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          content: '我是您的 AI 编程助手，可以帮您：\n\n🔹 **编写代码**：告诉我需求，我来实现\n🔹 **审查代码**：发送代码片段，我来 Review\n🔹 **解答疑惑**：随时问我任何技术问题\n\n直接发送消息即可开始对话！',
+          tag: 'lark_md',
+        },
+      },
+    ],
+  };
+}
+
+function getStatusTemplate(status: TaskStatus): string {
+  const templates: Record<TaskStatus, string> = {
+    pending: 'grey',
+    processing: 'blue',
+    completed: 'green',
+    failed: 'red',
+    timeout: 'orange',
+  };
+  return templates[status] || 'grey';
+}
+
+function getStatusTitle(status: TaskStatus): string {
+  const titles: Record<TaskStatus, string> = {
+    pending: '任务排队中',
+    processing: '处理中',
+    completed: '已完成',
+    failed: '执行失败',
+    timeout: '执行超时',
+  };
+  return titles[status] || '处理中';
+}
+
+export type { LarkCard };
