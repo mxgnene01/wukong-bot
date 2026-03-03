@@ -2,9 +2,7 @@ node_modules
 dist
 data
 logs
-workspace/logs
-workspace/agents
-workspace/sessions
+workspace
 backups
 .env
 .DS_Store
