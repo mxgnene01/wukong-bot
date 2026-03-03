@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from './logger';
 import { getConfig } from '../config';
+import { getDB } from '../db';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -40,7 +41,40 @@ export async function runCleanup() {
     await cleanupDirectory(rule);
   }
 
-  logger.info('[Cleanup] Disk cleanup completed');
+  // 清理数据库
+  await cleanupDatabase();
+
+  logger.info('[Cleanup] Cleanup completed');
+}
+
+async function cleanupDatabase() {
+  try {
+    const db = getDB();
+    const now = Date.now();
+    
+    // 1. 清理已完成/失败的任务 (保留 7 天)
+    const taskRetention = 7 * ONE_DAY_MS;
+    const taskThreshold = now - taskRetention;
+    
+    // 注意：这里需要直接执行 SQL，因为 DB 类可能没有暴露清理方法
+    // 我们假设 DB 类暴露了 run 方法或者我们需要扩充 DB 类
+    // 查看 src/db/index.ts，它暴露了 run 方法吗？
+    // 通常 DB 类会封装 prepare/run。
+    // 为了不破坏封装，我们在 DB 类中添加 cleanup 方法更好。
+    
+    // 暂时先调用 db.cleanup() (我们稍后去实现它)
+    if (typeof (db as any).cleanup === 'function') {
+        const deleted = (db as any).cleanup(taskRetention);
+        if (deleted > 0) {
+            logger.info(`[Cleanup] Cleaned ${deleted} old database records`);
+        }
+    } else {
+        logger.warn('[Cleanup] DB cleanup method not implemented');
+    }
+
+  } catch (error) {
+    logger.error('[Cleanup] Failed to clean database:', error);
+  }
 }
 
 async function cleanupDirectory(rule: CleanupRule) {

@@ -420,6 +420,42 @@ export class CodyDB {
 
     return null;
   }
+
+  // ============ Cleanup ============
+  cleanup(retentionMs: number): number {
+    const now = Date.now();
+    const threshold = now - retentionMs;
+    let deletedCount = 0;
+
+    try {
+        // 1. 清理 pending_tasks (completed, failed, timeout)
+        const taskRes = this.db.prepare(`
+            DELETE FROM pending_tasks 
+            WHERE status IN ('completed', 'failed', 'timeout') 
+            AND createdAt < ?
+        `).run(threshold);
+        deletedCount += taskRes.changes;
+
+        // 2. 清理 agent_messages (已读或过期)
+        const msgRes = this.db.prepare(`
+            DELETE FROM agent_messages 
+            WHERE (status IN ('read', 'expired') OR expires_at < ?)
+            AND created_at < ?
+        `).run(now, threshold);
+        deletedCount += msgRes.changes;
+
+        // 3. 执行 VACUUM (整理碎片，释放磁盘空间)
+        // 注意：VACUUM 是一个重操作，可能不适合每次都做，或者应该异步做
+        // 这里仅在删除了大量数据时执行
+        if (deletedCount > 1000) {
+            this.db.exec('VACUUM');
+        }
+    } catch (e) {
+        console.error('[DB] Cleanup failed:', e);
+    }
+
+    return deletedCount;
+  }
 }
 
 let dbInstance: CodyDB | null = null;
