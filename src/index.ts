@@ -55,7 +55,7 @@ getSkillLoader().start();
 
 const workerEngine = startWorker();
 startCronScheduler();
-startDailyStatsScheduler();
+// startDailyStatsScheduler(); // 移除自动启动，改为按需启动
 
 async function main() {
   const eventSource = await createEventSource();
