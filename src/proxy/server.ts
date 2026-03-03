@@ -47,10 +47,12 @@ app.post('/v1/messages', async (req, res) => {
 
   // 1. 路由策略
   if (hasImageContent(body.messages || [])) {
-    logger.info(`[Proxy:${requestId}] 📸 Detected image content, routing to doubao-seed-code`);
+    logger.info(`[Proxy:${requestId}] 📸 [IMAGE DETECTED] Routing to doubao-seed-code-preview-latest`);
     
     // 强制使用支持视觉的模型
+    const originalModel = body.model;
     body.model = 'doubao-seed-code-preview-latest';
+    logger.info(`[Proxy:${requestId}] Model switched: ${originalModel} -> ${body.model}`);
     
     // 转换消息格式
     if (Array.isArray(body.messages)) {
@@ -62,18 +64,6 @@ app.post('/v1/messages', async (req, res) => {
   } else {
     logger.info(`[Proxy:${requestId}] 📝 Text-only content, using model: ${body.model}`);
   }
-
-  // 如果没有配置 ARK_API_KEY，直接报错
-  // if (!ARK_API_KEY) {
-  //   logger.error(`[Proxy:${requestId}] ARK_API_KEY not configured`);
-  //   res.status(500).json({ 
-  //     error: {
-  //       type: 'server_error',
-  //       message: 'ARK_API_KEY is not configured in .env'
-  //     }
-  //   });
-  //   return;
-  // }
 
   try {
     // 3. 转发到火山方舟
@@ -103,6 +93,8 @@ app.post('/v1/messages', async (req, res) => {
       res.status(arkResp.status).send(errorText);
       return;
     }
+
+    logger.info(`[Proxy:${requestId}] Upstream response: ${arkResp.status} OK`);
 
     // 4. 流式转发响应
     res.status(arkResp.status);
