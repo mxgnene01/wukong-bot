@@ -11,6 +11,14 @@ export interface Config {
   memory: MemoryConfig;
   middleware: MiddlewareConfig;
   logging: LoggingConfig;
+  workflow: WorkflowConfig;
+}
+
+export interface WorkflowConfig {
+  enabled: boolean;
+  workflowsDir: string;
+  defaultTimeoutMs: number;
+  maxConcurrentWorkflows: number;
 }
 
 export interface AppConfig {
@@ -114,11 +122,11 @@ export const defaultConfig: Config = {
     id: process.env.WORKER_ID || crypto.randomUUID(),
     heartbeatIntervalMs: parseInt(process.env.HEARTBEAT_INTERVAL || '30000', 10),
     taskTimeoutMs: parseInt(process.env.TASK_TIMEOUT || '1800000', 10),
-    maxConcurrentTasks: 3,
+    maxConcurrentTasks: parseInt(process.env.MAX_CONCURRENT_TASKS || '3', 10),
   },
   skills: {
     enabled: true,
-    skillsDir: './skills',
+    skillsDir: process.env.SKILLS_DIR || './workspace/skills',
     autoLoad: true,
   },
   memory: {
@@ -134,6 +142,12 @@ export const defaultConfig: Config = {
     level: (process.env.LOG_LEVEL as any) || 'info',
     enableFile: process.env.LOG_ENABLE_FILE !== 'false',
     enableConsole: process.env.LOG_ENABLE_CONSOLE !== 'false',
+  },
+  workflow: {
+    enabled: process.env.WORKFLOW_ENABLED !== 'false',
+    workflowsDir: process.env.WORKFLOWS_DIR || './workspace/workflows',
+    defaultTimeoutMs: parseInt(process.env.WORKFLOW_DEFAULT_TIMEOUT || '1800000', 10),
+    maxConcurrentWorkflows: parseInt(process.env.MAX_CONCURRENT_WORKFLOWS || '10', 10),
   },
 };
 

@@ -11,6 +11,7 @@ import { sendCard } from './lark/client';
 import { buildWelcomeCard, buildProgressCard } from './cards';
 import { logger } from './utils/logger';
 import { getMemoryManager } from './session/memory';
+import { handleWorkflowTrigger } from './gateway/workflow-trigger';
 import type { LarkMessageEvent } from './types';
 
 // 最先加载配置，确保 logger 等其他模块可以使用
@@ -83,6 +84,11 @@ async function handleEvent(event: LarkMessageEvent) {
   }
 
   if (await handleAgentIdentityCommand(ctx.content, ctx.context)) {
+    return;
+  }
+
+  // 检查工作流触发
+  if (await handleWorkflowTrigger(ctx.context.userId, ctx.content)) {
     return;
   }
 

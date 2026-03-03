@@ -36,7 +36,8 @@
       "Bash(bun build --no-bundle ./src/config/schema.ts 2>&1 && echo \"✓ schema.ts OK\" && bun build --no-bundle ./src/utils/config.ts 2>&1 && echo \"✓ utils/config.ts OK\")",
       "Bash(bun test_claude.ts 2>&1)",
       "Bash(bun test_claude_json.ts 2>&1)",
-      "Bash(bunx tsc --noEmit 2>&1)"
+      "Bash(bunx tsc --noEmit 2>&1)",
+      "Bash(git restore src/gateway/app.ts src/lark/file.ts)"
     ]
   }
 }
