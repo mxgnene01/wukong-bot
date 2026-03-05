@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS pending_tasks (
   workerId TEXT,
   startedAt INTEGER,
   lastHeartbeatAt INTEGER,
-  createdAt INTEGER NOT NULL
+  createdAt INTEGER NOT NULL,
+  sessionKey TEXT,
+  agentId TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_pending_tasks_status ON pending_tasks(status);
@@ -53,4 +55,55 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_session TEXT NOT NULL,
+  to_session TEXT NOT NULL,
+  message TEXT NOT NULL,
+  message_type TEXT DEFAULT 'text',
+  correlation_id TEXT,
+  status TEXT DEFAULT 'pending',
+  metadata TEXT,
+  created_at INTEGER NOT NULL,
+  read_at INTEGER,
+  expires_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_messages_to_session ON agent_messages(to_session, status);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_correlation ON agent_messages(correlation_id);
+
+CREATE TABLE IF NOT EXISTS workflow_runs (
+  run_id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  inputs TEXT NOT NULL,             -- JSON
+  steps TEXT NOT NULL,              -- JSON，所有步骤的状态
+  triggered_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_id ON workflow_runs(workflow_id);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  category TEXT, -- 'fact', 'preference', 'constraint'
+  confidence REAL DEFAULT 1.0,
+  created_at INTEGER,
+  updated_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS reflections (
+  id TEXT PRIMARY KEY,
+  task_id TEXT,
+  trigger TEXT, -- what caused the reflection
+  content TEXT, -- the insight
+  actionable_item TEXT, -- what to do differently
+  created_at INTEGER
+);
 `;

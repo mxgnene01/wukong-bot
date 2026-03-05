@@ -1,4 +1,5 @@
 import type { TaskStatus } from '../types';
+import type { DailyStats } from '../stats/daily';
 
 interface CardElement {
   tag: string;
@@ -26,10 +27,44 @@ export function buildProgressCard(
   status: TaskStatus,
   message: string,
   percentage?: number,
-  taskId?: string
+  taskId?: string,
+  startTime?: number
 ): LarkCard {
   const template = getStatusTemplate(status);
-  const title = getStatusTitle(status);
+  let title = getStatusTitle(status);
+
+  // 计算耗时
+  let durationStr = '';
+  if (startTime) {
+    const duration = Date.now() - startTime;
+    const seconds = Math.floor(duration / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) {
+      durationStr = `${hours}h${minutes % 60}m`;
+    } else if (minutes > 0) {
+      durationStr = `${minutes}m${seconds % 60}s`;
+    } else {
+      durationStr = `${seconds}s`;
+    }
+  }
+
+  // 如果正在处理中，尝试使用更紧凑的标题样式：[ID] ⏳ 进度% 耗时
+  if (status === 'processing') {
+    const idStr = taskId ? taskId.slice(0, 8) : '';
+    const progressStr = percentage !== undefined ? `${percentage}%` : '';
+    const parts = [];
+    
+    // 组合标题: 处理中 [ID] ⏳ 45% 1m30s
+    if (idStr) parts.push(`[${idStr}]`);
+    if (progressStr || durationStr) parts.push('⏳');
+    if (progressStr) parts.push(progressStr);
+    if (durationStr) parts.push(durationStr);
+    
+    if (parts.length > 0) {
+      title = `${getStatusTitle(status)} ${parts.join(' ')}`;
+    }
+  }
 
   let displayMessage = message;
   if (percentage !== undefined) {
@@ -222,6 +257,125 @@ function getStatusTitle(status: TaskStatus): string {
     timeout: '执行超时',
   };
   return titles[status] || '处理中';
+}
+
+export function buildDailyStatsCard(stats: DailyStats): LarkCard {
+  const elements: CardElement[] = [];
+
+  // 摘要部分
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content: `📊 **每日统计报告**\n\n**日期**: ${stats.date}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // 消息统计
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content:
+        `**🔢 消息统计**\n` +
+        `• 用户消息: ${stats.userMessageCount.toLocaleString()}\n` +
+        `• 助手消息: ${stats.assistantMessageCount.toLocaleString()}\n` +
+        `• 会话数量: ${stats.totalSessionCount.toLocaleString()}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // Token 统计
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content:
+        `**💰 Token 使用**\n` +
+        `• 输入: ${stats.totalInputTokens.toLocaleString()}\n` +
+        `• 输出: ${stats.totalOutputTokens.toLocaleString()}\n` +
+        `• 缓存读取: ${stats.totalCacheReadTokens.toLocaleString()}\n` +
+        `• 缓存写入: ${stats.totalCacheWriteTokens.toLocaleString()}\n` +
+        `• **总计**: ${stats.totalTokens.toLocaleString()}`,
+    },
+  });
+
+  elements.push({ tag: 'hr' });
+
+  // 成本
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'lark_md',
+      content: `**💸 总成本**\n\n$${stats.totalCostUsd.toFixed(4)}`,
+    },
+  });
+
+  // Token 缺失提示
+  if (stats.assistantMessageCount > 0 && stats.totalTokens === 0) {
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: '⚠️ 有助手消息但无 Token 数据。历史消息缺少 usage 字段，新消息将自动采集。',
+      },
+    });
+  }
+
+  // 会话详情（如果有）
+  if (stats.sessions.length > 0) {
+    elements.push({ tag: 'hr' });
+
+    let sessionDetails = '**📋 会话详情**\n';
+    for (const session of stats.sessions.slice(0, 5)) {
+      const tokenInfo = session.totalTokens > 0
+        ? `${session.totalTokens.toLocaleString()} tokens, $${session.costUsd.toFixed(4)}`
+        : '无 Token 数据';
+      sessionDetails +=
+        `• ${session.sessionId.slice(0, 20)}...: ` +
+        `${session.messageCount} 条消息, ${tokenInfo}\n`;
+    }
+    if (stats.sessions.length > 5) {
+      sessionDetails += `... 还有 ${stats.sessions.length - 5} 个会话`;
+    }
+
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: sessionDetails,
+      },
+    });
+  }
+
+  const sourceLabel = (stats as any).dataSource === 'merged' ? 'JSONL + DB' :
+                      (stats as any).dataSource === 'db' ? '仅 DB' : 'JSONL';
+
+  elements.push({
+    tag: 'note',
+    elements: [
+      { tag: 'plain_text', content: `生成时间: ${new Date().toLocaleString('zh-CN')} | 数据来源: ${sourceLabel}` },
+    ],
+  });
+
+  return {
+    config: {
+      wide_screen_mode: true,
+      enable_forward: true,
+      update_multi: false,
+    },
+    header: {
+      title: {
+        tag: 'plain_text',
+        content: '📊 每日统计报告',
+      },
+      template: 'blue',
+    },
+    elements,
+  };
 }
 
 export type { LarkCard };

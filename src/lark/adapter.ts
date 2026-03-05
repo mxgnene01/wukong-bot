@@ -3,16 +3,17 @@ import { logger } from '../utils/logger';
 
 // 适配 WebSocket 和 Webhook 两种数据格式
 export function normalizeEvent(rawEvent: any): LarkMessageEvent {
-  logger.info('[Adapter] Normalizing event:', typeof rawEvent, Object.keys(rawEvent || {}));
+  // [P5 Fix] 只打格式类型，不打完整 JSON
+  const isStandard = rawEvent.header && rawEvent.event;
+  logger.debug('[Adapter] Normalizing event, standard format:', isStandard);
 
   // 如果已经是标准格式，直接返回
-  if (rawEvent.header && rawEvent.event) {
-    logger.info('[Adapter] Already in standard format');
+  if (isStandard) {
     return rawEvent as LarkMessageEvent;
   }
 
   // WebSocket 扁平格式，需要包装成标准格式
-  logger.info('[Adapter] Converting WebSocket flat format to standard format');
+  logger.debug('[Adapter] Converting WebSocket flat format to standard format');
 
   // 从扁平结构中提取 header 相关字段
   const header = {
@@ -40,7 +41,9 @@ export function normalizeEvent(rawEvent: any): LarkMessageEvent {
     event,
   };
 
-  logger.debug('[Adapter] Normalized event:', JSON.stringify(normalized, null, 2));
+  // [P5 Fix] 不再打印完整 JSON，只打 event_id
+  const eventId = normalized.header?.event_id || 'unknown';
+  logger.debug(`[Adapter] Normalized event: event_id=${eventId}`);
 
   return normalized as LarkMessageEvent;
 }

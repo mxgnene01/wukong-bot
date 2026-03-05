@@ -124,7 +124,7 @@ export async function updateCard(messageId: string, card: LarkCard) {
   const client = getLarkClient();
   const cardJson = JSON.stringify(card);
 
-  logger.info('[Lark] updateCard called, messageId:', messageId);
+  logger.debug('[Lark] updateCard called, messageId:', messageId);
   logger.debug('[Lark] Update card JSON:', cardJson);
 
   try {
@@ -136,7 +136,7 @@ export async function updateCard(messageId: string, card: LarkCard) {
         content: cardJson,
       },
     });
-    logger.info('[Lark] updateCard response:', res);
+    logger.debug('[Lark] updateCard response:', res);
   } catch (error: any) {
     logger.error('[Lark] updateCard error:', error);
     logger.error('[Lark] updateCard error details:', JSON.stringify(error, null, 2));

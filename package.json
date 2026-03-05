@@ -12,13 +12,19 @@
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.34.1",
+    "@types/express": "^5.0.6",
+    "@types/node-fetch": "2",
+    "express": "^5.2.1",
     "hono": "^4.0.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "node-fetch": "2",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/node-cron": "^3.0.11",
-    "typescript": "^5.4.0",
-    "@types/bun": "latest"
+    "@types/uuid": "^11.0.0",
+    "typescript": "^5.4.0"
   },
   "engines": {
     "bun": ">=1.0.0"

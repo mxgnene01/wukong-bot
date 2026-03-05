@@ -37,19 +37,16 @@ export class LarkWebSocketSource implements EventSource {
     logger.log('[WebSocket] Setting up EventDispatcher...');
     const eventDispatcher = new EventDispatcher({}).register({
       'im.message.receive_v1': (data: any) => {
-        logger.log('[WebSocket] ================ Received Message ================');
-        logger.log('[WebSocket] Type:', typeof data);
-        logger.log('[WebSocket] Keys:', Object.keys(data || {}));
-        logger.log('[WebSocket] Raw data:', JSON.stringify(data, null, 2));
-        logger.log('[WebSocket] =============================================');
+        // [P5 Fix] 精简日志：只打摘要，不打完整 JSON
+        const msgId = data?.message?.message_id || data?.message_id || 'unknown';
+        const msgType = data?.message?.message_type || data?.message_type || 'unknown';
+        logger.log(`[WebSocket] Received message: id=${msgId}, type=${msgType}`);
 
         if (this.handler) {
-          logger.log('[WebSocket] Normalizing event...');
           const normalized = normalizeEvent(data);
-          logger.log('[WebSocket] Calling handler with normalized event...');
           this.handler(normalized);
         } else {
-          logger.log('[WebSocket] No handler registered!');
+          logger.warn('[WebSocket] No handler registered!');
         }
       },
     });

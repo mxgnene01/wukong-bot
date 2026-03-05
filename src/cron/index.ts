@@ -47,7 +47,22 @@ function triggerScheduledTask(task: ScheduledTask) {
   const queue = getQueue();
 
   // 只调用 queue.enqueue，它内部已经会处理数据库持久化
-  queue.enqueue('scheduled', task.context, task.content, task.id);
+  queue.enqueue('scheduled', task.context, task.content, undefined, task.id);
+
+  // 一次性延时提醒：cron 表达式包含具体日期（day + month 非 *），触发后自动禁用
+  const parts = task.cron.trim().split(/\s+/);
+  if (parts.length >= 5 && parts[2] !== '*' && parts[3] !== '*') {
+    console.log(`[Cron] One-time task "${task.name}" fired, auto-disabling`);
+    const db = getDB();
+    db.updateScheduledTaskEnabled(task.id, false);
+
+    // 同步停止 cron job
+    const existing = scheduledJobs.get(task.id);
+    if (existing) {
+      existing.stop();
+      scheduledJobs.delete(task.id);
+    }
+  }
 }
 
 export function stopAllTasks() {

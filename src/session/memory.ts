@@ -1,6 +1,9 @@
 import type { MemoryConfig, Session } from '../types';
 import { getDB } from '../db';
 import { getLongTermMemoryManager } from './long_term_memory';
+import { getUserProfileManager } from '../workspace/user';
+import { getDailyLogManager } from '../workspace/daily-log';
+import { logger } from '../utils/logger';
 
 const DEFAULT_AGENT_IDENTITY = `你是 Wukong Bot
 你的职责是：
@@ -16,7 +19,27 @@ export class MemoryManager {
 
   buildSystemPrompt(session: Session): string {
     const agentIdentity = this.getAgentIdentity(session.userId);
-    const userProfile = this.getUserProfile(session.userId);
+
+    // 优先使用 UserProfileManager（文件系统），回退到 DB 老方式
+    let userProfile: string;
+    try {
+      const upm = getUserProfileManager();
+      userProfile = upm.formatForSystemPrompt(session.userId);
+    } catch (e) {
+      logger.debug(`[Memory] UserProfileManager fallback to DB:`, e);
+      userProfile = this.getUserProfile(session.userId);
+    }
+
+    // Soul 系统注入
+    let soulPrompt: string | undefined;
+    try {
+      const { getSoulManager } = require('../soul');
+      const soulMgr = getSoulManager();
+      const soul = soulMgr.getSoul('default');
+      soulPrompt = soulMgr.formatForSystemPrompt(soul);
+    } catch (e) {
+      // Soul 系统可选，不阻塞
+    }
 
     // 获取长期记忆
     const longTermMemory = this.longTermMemory.getMemory(session.userId);
@@ -32,6 +55,7 @@ export class MemoryManager {
     return this.combineMemory({
       agentIdentity,
       userProfile,
+      soulPrompt,
       memoryInjection,
       recentHistory,
     });
@@ -41,19 +65,45 @@ export class MemoryManager {
     const history = session.history || [];
     if (history.length === 0) return undefined;
 
-    // 取最近的 maxMessages 条
-    const recent = history.slice(-maxMessages);
+    // 过滤掉低质量的历史消息（错误回复、空内容等）
+    const filtered = history.filter(msg => {
+      if (!msg.content || msg.content.trim().length === 0) return false;
+      // 过滤掉错误消息和无意义的系统回复
+      if (msg.role === 'assistant') {
+        const content = msg.content.trim();
+        if (content.startsWith('Unknown skill:')) return false;
+        if (content.startsWith('❌')) return false;
+        if (content.length < 5) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) return undefined;
+
+    // 取最近的 maxMessages 条（过滤后）
+    const recent = filtered.slice(-maxMessages);
 
     const parts = recent.map(msg => {
       const role = msg.role === 'user' ? '用户' : '助手';
-      return `${role}: ${msg.content}`;
+      // 截断过长的消息，避免 system prompt 膨胀
+      let content = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
+      // 移除结构化指令，避免历史中的指令成为 few-shot 范例被模仿
+      content = content.replace(/\[SCHEDULE_TASK[^\]]*\][\s\S]*?\[\/SCHEDULE_TASK\]/g, '[已设置定时提醒]');
+      content = content.replace(/\[AGENT_SEND[^\]]*\][\s\S]*?\[\/AGENT_SEND\]/g, '[已发送Agent消息]');
+      content = content.replace(/\[TASK_DONE[^\]]*\][\s\S]*?\[\/TASK_DONE\]/g, '[任务完成]');
+      content = content.replace(/\[UPDATE_SOUL[^\]]*\][\s\S]*?\[\/UPDATE_SOUL\]/g, '[已更新Soul]');
+      return `${role}: ${content}`;
     });
 
     return parts.join('\n\n');
   }
 
-  private combineMemory(config: MemoryConfig & { memoryInjection?: string, recentHistory?: string }): string {
+  private combineMemory(config: MemoryConfig & { soulPrompt?: string, memoryInjection?: string, recentHistory?: string }): string {
     let prompt = '';
+
+    if (config.soulPrompt) {
+      prompt += `===== Soul (人格与哲学) =====\n${config.soulPrompt}\n\n`;
+    }
 
     if (config.agentIdentity) {
       prompt += `===== 角色身份 =====\n${config.agentIdentity}\n\n`;
@@ -100,6 +150,13 @@ export class MemoryManager {
     if (userId) {
       this.longTermMemory.queueMessage(userId, { role: 'user', content });
     }
+    // 写入 Daily Log
+    try {
+      const dlm = getDailyLogManager();
+      dlm.logConversation(userId || 'unknown', sessionId, `[用户] ${content.slice(0, 200)}`);
+    } catch (e) {
+      logger.debug('[Memory] DailyLog write skipped:', e);
+    }
   }
 
   saveAssistantMessage(sessionId: string, content: string, userId?: string) {
@@ -107,6 +164,13 @@ export class MemoryManager {
     // 同时加入长期记忆队列
     if (userId) {
       this.longTermMemory.queueMessage(userId, { role: 'assistant', content });
+    }
+    // 写入 Daily Log
+    try {
+      const dlm = getDailyLogManager();
+      dlm.logConversation(userId || 'unknown', sessionId, `[助手] ${content.slice(0, 200)}`);
+    } catch (e) {
+      logger.debug('[Memory] DailyLog write skipped:', e);
     }
   }
 }
