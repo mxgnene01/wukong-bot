@@ -159,8 +159,8 @@ export class WorkerEngine {
                   
                   const item = reflection.actionableItem;
                   if (item.startsWith('Create skill:')) {
-                    // 评估结果建议创建技能 → 交给 EvolutionEngine
-                    this.evolution.acquireCapability(item.replace('Create skill:', '').trim()).catch(e => logger.error(e));
+                    // 评估结果建议创建技能 → 交给 EvolutionEngine（使用兼容包装器）
+                    this.evolution.evolveFromInsight(item.replace('Create skill:', '').trim()).catch(e => logger.error(e));
                   } else if (item.startsWith('Update memory:')) {
                     // 评估结果建议更新记忆 → 保存到长期记忆
                     const memoryContent = item.replace('Update memory:', '').trim();

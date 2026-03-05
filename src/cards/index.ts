@@ -314,16 +314,29 @@ export function buildDailyStatsCard(stats: DailyStats): LarkCard {
     },
   });
 
+  // Token 缺失提示
+  if (stats.assistantMessageCount > 0 && stats.totalTokens === 0) {
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: '⚠️ 有助手消息但无 Token 数据。历史消息缺少 usage 字段，新消息将自动采集。',
+      },
+    });
+  }
+
   // 会话详情（如果有）
   if (stats.sessions.length > 0) {
     elements.push({ tag: 'hr' });
 
     let sessionDetails = '**📋 会话详情**\n';
     for (const session of stats.sessions.slice(0, 5)) {
+      const tokenInfo = session.totalTokens > 0
+        ? `${session.totalTokens.toLocaleString()} tokens, $${session.costUsd.toFixed(4)}`
+        : '无 Token 数据';
       sessionDetails +=
-        `• ${session.sessionId.slice(0, 8)}...: ` +
-        `${session.totalTokens.toLocaleString()} tokens, ` +
-        `$${session.costUsd.toFixed(4)}\n`;
+        `• ${session.sessionId.slice(0, 20)}...: ` +
+        `${session.messageCount} 条消息, ${tokenInfo}\n`;
     }
     if (stats.sessions.length > 5) {
       sessionDetails += `... 还有 ${stats.sessions.length - 5} 个会话`;
@@ -338,10 +351,13 @@ export function buildDailyStatsCard(stats: DailyStats): LarkCard {
     });
   }
 
+  const sourceLabel = (stats as any).dataSource === 'merged' ? 'JSONL + DB' :
+                      (stats as any).dataSource === 'db' ? '仅 DB' : 'JSONL';
+
   elements.push({
     tag: 'note',
     elements: [
-      { tag: 'plain_text', content: `生成时间: ${new Date().toLocaleString('zh-CN')}` },
+      { tag: 'plain_text', content: `生成时间: ${new Date().toLocaleString('zh-CN')} | 数据来源: ${sourceLabel}` },
     ],
   });
 

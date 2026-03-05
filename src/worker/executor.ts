@@ -15,6 +15,7 @@ import { getQueue } from '../queue';
 import { makeSessionKey, parseSessionKey } from '../agent/session';
 import { parseAgentCommands } from '../agent/command-parser';
 import { getAgentsManager } from '../workspace/agents';
+import { EvolutionEngine } from '../evolution';
 import { downloadFile, detectImageType, toBase64 } from '../lark/file';
 import type { QueueTask, TaskStatus, AgentMessage } from '../types';
 
@@ -163,9 +164,24 @@ export class TaskExecutor {
       logger.log('[Executor] Matching skills for content:', task.content);
       const skills = this.getMatchedSkills(taskId, task.content);
       logger.log('[Executor] Matched skills:', skills.map(s => s.name));
-      const skillPrompt = this.buildSkillPrompt(skills);
+      let skillPrompt = this.buildSkillPrompt(skills);
       if (skillPrompt) {
         logger.log('[Executor] Skill prompt added');
+      }
+
+      // ──── 技能进化：预注入技能列表 ────
+      // 当匹配到 meta_learning 技能时，将当前已安装技能列表注入 prompt，
+      // 由 LLM 自主判断用户意图（查询 / 学习 / 混合），不再做硬编码意图分类。
+      const hasEvolutionSkill = skills.some(s => s.id === 'meta_learning');
+      if (hasEvolutionSkill) {
+        try {
+          const evolution = new EvolutionEngine();
+          const skillList = evolution.listSkills();
+          skillPrompt = (skillPrompt || '') + '\n\n## 当前已安装技能列表\n' + skillList;
+          logger.info('[Executor] Evolution: injected skill list for LLM-based intent handling');
+        } catch (e) {
+          logger.error('[Executor] Evolution skill list injection failed:', e);
+        }
       }
 
       await updateProgressWrapper('processing', '正在构建系统提示...', 25);

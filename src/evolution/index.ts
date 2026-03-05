@@ -1,58 +1,144 @@
-import { SkillManager, type SkillSpec } from './skill-manager';
+import { SkillManager, type SkillSpec, type MarketSkillInfo } from './skill-manager';
 import { getAgent } from '../agent';
 import { logger } from '../utils/logger';
+import type { Skill } from '../skills/types';
+
+/**
+ * 技能进化结果
+ */
+export interface EvolutionResult {
+  success: boolean;
+  action: 'found_local' | 'installed_market' | 'created_new' | 'failed';
+  skillName?: string;
+  skill?: Skill;
+  message: string;
+}
 
 export class EvolutionEngine {
   private manager = new SkillManager();
   private agent = getAgent();
 
   /**
-   * Main entry point: Acquire a capability
-   * Now actually creates skills when none found (was previously a no-op)
+   * 完整的三级技能获取链路：
+   * 
+   * Step 1: 查找本地 → 有则直接使用
+   * Step 2: 搜索技能市场 → 有则安装并使用
+   * Step 3: LLM 生成并创建 → 自主学习
+   * 
+   * @param query - 技能描述或名称
+   * @param spec  - 可选的预定义 SkillSpec
    */
-  async acquireCapability(query: string, spec?: Partial<SkillSpec>): Promise<boolean> {
-    logger.info(`[Evolution] Acquiring capability: ${query}`);
+  async acquireCapability(
+    query: string,
+    spec?: Partial<SkillSpec>
+  ): Promise<EvolutionResult> {
+    logger.info(`[Evolution] ═══ Acquiring capability: "${query}" ═══`);
 
-    // 1. Try to find existing skill
-    const found = await this.manager.findSkill(query);
-    if (found) {
-      logger.info(`[Evolution] Found existing skill for "${query}"`);
-      return true;
+    // ──── Step 1: 查找本地已有技能 ────
+    const localSkill = await this.manager.findLocalSkill(query);
+    if (localSkill) {
+      logger.info(`[Evolution] ✅ Step 1: Found local skill "${localSkill.name}"`);
+      return {
+        success: true,
+        action: 'found_local',
+        skillName: localSkill.name,
+        skill: localSkill,
+        message: `已有技能「${localSkill.name}」可以处理此任务。`,
+      };
     }
+    logger.info(`[Evolution] Step 1: No local skill found, proceeding to market search...`);
 
-    // 2. If a spec is provided directly, use it
+    // ──── Step 2: 搜索外部技能市场 ────
+    try {
+      const marketSkill = await this.manager.searchMarket(query);
+      if (marketSkill) {
+        const installed = await this.manager.installFromMarket(marketSkill);
+        if (installed) {
+          logger.info(`[Evolution] ✅ Step 2: Installed market skill "${marketSkill.name}"`);
+          return {
+            success: true,
+            action: 'installed_market',
+            skillName: marketSkill.name,
+            message: `从技能市场安装了「${marketSkill.name}」: ${marketSkill.description}`,
+          };
+        }
+      }
+    } catch (e) {
+      logger.warn(`[Evolution] Step 2: Market search failed, proceeding to create...`, e);
+    }
+    logger.info(`[Evolution] Step 2: No market skill found, proceeding to LLM generation...`);
+
+    // ──── Step 3: LLM 生成 + 创建新技能 ────
+    // 如果提供了预定义 spec，直接使用
     if (spec && spec.name && spec.description) {
-      logger.info(`[Evolution] Creating skill from provided spec: ${spec.name}`);
-      return await this.manager.createSkill(spec as SkillSpec);
+      logger.info(`[Evolution] Step 3: Creating from provided spec: ${spec.name}`);
+      const created = await this.manager.createSkill(spec as SkillSpec);
+      if (created) {
+        return {
+          success: true,
+          action: 'created_new',
+          skillName: spec.name,
+          message: `已创建新技能「${spec.name}」: ${spec.description}`,
+        };
+      }
     }
 
-    // 3. Otherwise, use LLM to generate a SkillSpec from the query
-    logger.info(`[Evolution] No existing skill found. Generating spec via LLM...`);
+    // 否则用 LLM 生成 SkillSpec
     const generated = await this.generateSkillSpec(query);
     if (generated) {
-      return await this.manager.createSkill(generated);
+      const created = await this.manager.createSkill(generated);
+      if (created) {
+        logger.info(`[Evolution] ✅ Step 3: Created new skill "${generated.name}"`);
+        return {
+          success: true,
+          action: 'created_new',
+          skillName: generated.name,
+          message: `已学会新技能「${generated.name}」: ${generated.description}\n触发方式: ${generated.triggers.join(', ')}`,
+        };
+      }
     }
 
-    logger.warn(`[Evolution] Failed to generate skill spec for "${query}"`);
-    return false;
+    logger.warn(`[Evolution] ✗ All 3 steps failed for "${query}"`);
+    return {
+      success: false,
+      action: 'failed',
+      message: `未能获取「${query}」相关技能。本地无匹配、市场未找到、自动创建失败。`,
+    };
+  }
+  /**
+   * 查询已有技能列表（供用户在聊天中查看）
+   */
+  listSkills(): string {
+    const skills = this.manager.listSkills();
+    if (skills.length === 0) {
+      return '当前没有已注册的技能。';
+    }
+
+    const lines = ['📚 **已注册技能列表**：\n'];
+    for (const skill of skills) {
+      const triggers = skill.triggers
+        .map(t => t.type === 'command' ? `/${t.pattern}` : t.pattern)
+        .slice(0, 3)
+        .join(', ');
+      lines.push(`- **${skill.name}** (${skill.id}): ${skill.description || '无描述'}`);
+      lines.push(`  触发: ${triggers}`);
+    }
+    return lines.join('\n');
   }
 
   /**
-   * Create a skill from a specific insight (e.g. from Reflection/ThinkingClock)
+   * 从 Reflection 洞察中被动进化（原有逻辑，保持兼容）
    */
   async evolveFromInsight(insight: string): Promise<void> {
     logger.info(`[Evolution] Evolving from insight: ${insight}`);
-    const spec = await this.generateSkillSpec(insight);
-    if (spec) {
-      const created = await this.manager.createSkill(spec);
-      if (created) {
-        logger.info(`[Evolution] Successfully evolved: created skill "${spec.name}"`);
-      }
+    const result = await this.acquireCapability(insight);
+    if (result.success) {
+      logger.info(`[Evolution] Evolved from insight: ${result.message}`);
     }
   }
 
   /**
-   * Use LLM to parse a natural language description into a proper SkillSpec
+   * 使用 LLM 将自然语言描述转换为 SkillSpec
    */
   private async generateSkillSpec(query: string): Promise<SkillSpec | null> {
     const prompt = `
@@ -80,7 +166,7 @@ Output JSON ONLY:
     try {
       const result = await this.agent.execute(prompt, {
         systemPrompt: 'You are a JSON-speaking skill architect. Output valid JSON only.',
-        isInternalCall: true, // 跳过 SAFETY_PROMPT，节省 ~400 tokens
+        isInternalCall: true,
         streamOutput: false,
       });
 

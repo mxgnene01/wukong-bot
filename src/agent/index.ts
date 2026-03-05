@@ -264,8 +264,7 @@ export class ClaudeAgent {
           if (!line.trim()) continue;
           
           try {
-            // 调试日志：记录原始行数据 (仅前200字符) - 临时使用info级别以便诊断
-            logger.info('[Agent] Stream line:', line.slice(0, 200));
+            logger.debug('[Agent] Stream line:', line.slice(0, 200));
             
             const json = JSON.parse(line);
             
@@ -289,8 +288,8 @@ export class ClaudeAgent {
             
             // 3. 提取最终结果
             if (json.type === 'result') {
-              logger.info('[Agent] Result JSON keys:', Object.keys(json).join(', '));
-              logger.info('[Agent] Result JSON result field type:', typeof json.result, 'value preview:', JSON.stringify(json.result)?.slice(0, 300));
+              logger.debug('[Agent] Result JSON keys:', Object.keys(json).join(', '));
+              logger.debug('[Agent] Result JSON result field type:', typeof json.result, 'value preview:', JSON.stringify(json.result)?.slice(0, 300));
               if (json.result) {
                 resultText = json.result;
               }
@@ -361,25 +360,41 @@ export class ClaudeAgent {
 
     const exitCode = await process.exited;
     
-    // 处理 buffer 中剩余的内容
+    // 处理 buffer 中剩余的内容（逐行解析，修复多行 buffer 导致 JSON.parse 失败的 bug）
     if (buffer.trim()) {
-        try {
-            const json = JSON.parse(buffer);
+        const remainingLines = buffer.split('\n').filter(line => line.trim());
+        logger.debug(`[Agent] Buffer remainder: ${remainingLines.length} line(s) to parse`);
+        for (const line of remainingLines) {
+          try {
+            const json = JSON.parse(line.trim());
             if (json.type === 'result') {
-              logger.info('[Agent] Buffer remainder - Result JSON keys:', Object.keys(json).join(', '));
+              logger.debug('[Agent] Buffer remainder - Result JSON keys:', Object.keys(json).join(', '));
               if (json.result) {
                 resultText = json.result;
+              }
+              if (json.usage && !tokenUsage) {
+                tokenUsage = {
+                  inputTokens: json.usage.input_tokens || 0,
+                  outputTokens: json.usage.output_tokens || 0,
+                  cacheCreationInputTokens: json.usage.cache_creation_input_tokens,
+                  cacheReadInputTokens: json.usage.cache_read_input_tokens,
+                  totalCostUsd: json.total_cost_usd,
+                };
+                logger.debug('[Agent] Buffer remainder - extracted tokenUsage:', JSON.stringify(tokenUsage));
               }
             }
             if (json.type === 'assistant' && json.message?.content && !resultText) {
               for (const content of json.message.content) {
                 if (content.type === 'text' && content.text) {
                   resultText = content.text;
-                  logger.info('[Agent] Buffer remainder - extracted assistant text, length:', resultText.length);
+                  logger.debug('[Agent] Buffer remainder - extracted assistant text, length:', resultText.length);
                 }
               }
             }
-        } catch (e) {}
+          } catch (e) {
+            logger.debug('[Agent] Buffer remainder - failed to parse line:', line.substring(0, 100));
+          }
+        }
     }
 
     const fullStdout = Buffer.concat(stdoutChunks).toString('utf-8');
@@ -387,7 +402,7 @@ export class ClaudeAgent {
     // 如果 resultText 还是空，用流式解析过程中收集到的 lastAssistantText 兜底
     if (!resultText && lastAssistantText) {
       resultText = lastAssistantText;
-      logger.info('[Agent] Using lastAssistantText as resultText fallback, length:', resultText.length);
+      logger.debug('[Agent] Using lastAssistantText as resultText fallback, length:', resultText.length);
     }
 
     // 如果流式解析没拿到结果（可能是因为某些异常情况），尝试从完整输出中正则提取
@@ -407,6 +422,17 @@ export class ClaudeAgent {
                     if (json.type === 'result' && json.result) {
                         resultText = json.result;
                         logger.info('[Agent] Fallback: found result.result at line', i);
+                        // 修复：Fallback 路径也需要提取 tokenUsage
+                        if (json.usage && !tokenUsage) {
+                          tokenUsage = {
+                            inputTokens: json.usage.input_tokens || 0,
+                            outputTokens: json.usage.output_tokens || 0,
+                            cacheCreationInputTokens: json.usage.cache_creation_input_tokens,
+                            cacheReadInputTokens: json.usage.cache_read_input_tokens,
+                            totalCostUsd: json.total_cost_usd,
+                          };
+                          logger.info('[Agent] Fallback: extracted tokenUsage:', JSON.stringify(tokenUsage));
+                        }
                     }
                     // 也收集 assistant text 作为兜底
                     if (json.type === 'assistant' && json.message?.content) {
