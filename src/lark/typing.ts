@@ -18,8 +18,9 @@ const TYPING_EMOJI = 'Typing';
 // 限流错误码集合
 const FEISHU_BACKOFF_CODES = new Set([99991400, 99991403, 429]);
 
-// Keepalive 间隔（毫秒）
-const KEEPALIVE_INTERVAL_MS = 3000;
+// [P4 Fix] Keepalive 间隔：3s → 10s，减少 ~70% 的 Lark API 调用
+// 飞书 emoji 不会在 10s 内过期，10s 足够保持可见
+const KEEPALIVE_INTERVAL_MS = 10000;
 
 /**
  * 打字指示器状态

@@ -27,10 +27,44 @@ export function buildProgressCard(
   status: TaskStatus,
   message: string,
   percentage?: number,
-  taskId?: string
+  taskId?: string,
+  startTime?: number
 ): LarkCard {
   const template = getStatusTemplate(status);
-  const title = getStatusTitle(status);
+  let title = getStatusTitle(status);
+
+  // 计算耗时
+  let durationStr = '';
+  if (startTime) {
+    const duration = Date.now() - startTime;
+    const seconds = Math.floor(duration / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) {
+      durationStr = `${hours}h${minutes % 60}m`;
+    } else if (minutes > 0) {
+      durationStr = `${minutes}m${seconds % 60}s`;
+    } else {
+      durationStr = `${seconds}s`;
+    }
+  }
+
+  // 如果正在处理中，尝试使用更紧凑的标题样式：[ID] ⏳ 进度% 耗时
+  if (status === 'processing') {
+    const idStr = taskId ? taskId.slice(0, 8) : '';
+    const progressStr = percentage !== undefined ? `${percentage}%` : '';
+    const parts = [];
+    
+    // 组合标题: 处理中 [ID] ⏳ 45% 1m30s
+    if (idStr) parts.push(`[${idStr}]`);
+    if (progressStr || durationStr) parts.push('⏳');
+    if (progressStr) parts.push(progressStr);
+    if (durationStr) parts.push(durationStr);
+    
+    if (parts.length > 0) {
+      title = `${getStatusTitle(status)} ${parts.join(' ')}`;
+    }
+  }
 
   let displayMessage = message;
   if (percentage !== undefined) {

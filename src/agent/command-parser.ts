@@ -1,6 +1,6 @@
 
 export interface AgentCommand {
-  type: 'AGENT_SEND' | 'TASK_DONE';
+  type: 'AGENT_SEND' | 'TASK_DONE' | 'SCHEDULE_TASK' | 'UPDATE_SOUL';
   to?: string;           // AGENT_SEND 的目标
   content: string;       // 消息内容或任务结果
   messageType?: string;  // 消息类型
@@ -8,6 +8,12 @@ export interface AgentCommand {
   status?: 'success' | 'failed';
   reason?: string;
   metadata?: Record<string, unknown>;
+  // SCHEDULE_TASK 专用字段
+  delay?: number;        // 延时（分钟）
+  unit?: string;         // 延时单位（minutes/hours）
+  cron?: string;         // cron 表达式
+  // UPDATE_SOUL 专用字段
+  section?: string;      // Soul 章节名
 }
 
 /**
@@ -49,6 +55,37 @@ export function parseAgentCommands(output: string): AgentCommand[] {
       content,
       status: (attrs.status as 'success' | 'failed') || 'success',
       reason: attrs.reason,
+    });
+  }
+
+  // 解析 SCHEDULE_TASK（定时提醒/定时任务）
+  const scheduleRegex = /\[SCHEDULE_TASK\s+([^\]]*)\]([\s\S]*?)\[\/SCHEDULE_TASK\]/g;
+
+  while ((match = scheduleRegex.exec(output)) !== null) {
+    const attrs = parseAttributes(match[1]);
+    const content = match[2].trim();
+
+    commands.push({
+      type: 'SCHEDULE_TASK',
+      content,
+      delay: attrs.delay ? parseInt(attrs.delay, 10) : undefined,
+      unit: attrs.unit || 'minutes',
+      cron: attrs.cron,
+    });
+  }
+
+  // 解析 UPDATE_SOUL（Agent 自我进化）
+  // 格式: [UPDATE_SOUL section="Knowledge & Growth"]新内容[/UPDATE_SOUL]
+  const soulRegex = /\[UPDATE_SOUL\s+([^\]]*)\]([\s\S]*?)\[\/UPDATE_SOUL\]/g;
+
+  while ((match = soulRegex.exec(output)) !== null) {
+    const attrs = parseAttributes(match[1]);
+    const content = match[2].trim();
+
+    commands.push({
+      type: 'UPDATE_SOUL',
+      content,
+      section: attrs.section || 'Knowledge & Growth',
     });
   }
 

@@ -1,3 +1,5 @@
+import path from 'path';
+
 // 参考 deer-flow 的配置系统设计
 
 export interface Config {
@@ -87,13 +89,15 @@ export interface LoggingConfig {
 }
 
 // 默认配置
+const workDir = process.env.WORK_DIR || process.cwd();
+
 export const defaultConfig: Config = {
   app: {
     name: 'Wukong Bot',
     version: '2.1.0',
     env: (process.env.NODE_ENV as any) || 'development',
     port: parseInt(process.env.PORT || '3000', 10),
-    workDir: process.env.WORK_DIR || process.cwd(),
+    workDir: workDir,
     eventSource: (process.env.EVENT_SOURCE as any) || 'webhook',
   },
   lark: {
@@ -109,7 +113,7 @@ export const defaultConfig: Config = {
     maxRetries: parseInt(process.env.CLAUDE_MAX_RETRIES || '1', 10),
   },
   database: {
-    path: process.env.DB_PATH || './data/cody.db',
+    path: path.join(workDir, 'data', 'wukong.db'),
     enableWal: true,
     busyTimeout: 5000,
   },
@@ -126,7 +130,7 @@ export const defaultConfig: Config = {
   },
   skills: {
     enabled: true,
-    skillsDir: process.env.SKILLS_DIR || './workspace/skills',
+    skillsDir: path.join(workDir, 'skills'),
     autoLoad: true,
   },
   memory: {
@@ -145,7 +149,7 @@ export const defaultConfig: Config = {
   },
   workflow: {
     enabled: process.env.WORKFLOW_ENABLED !== 'false',
-    workflowsDir: process.env.WORKFLOWS_DIR || './workspace/workflows',
+    workflowsDir: path.join(workDir, 'workflows'),
     defaultTimeoutMs: parseInt(process.env.WORKFLOW_DEFAULT_TIMEOUT || '1800000', 10),
     maxConcurrentWorkflows: parseInt(process.env.MAX_CONCURRENT_WORKFLOWS || '10', 10),
   },

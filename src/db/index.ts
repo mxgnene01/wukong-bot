@@ -1,13 +1,17 @@
 import { Database } from 'bun:sqlite';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { schema } from './schema';
 import type { Session, Setting, PendingTask, ScheduledTask, QueueTask, TaskStatus, ChatContext, HistoryMessage, AgentMessage } from '../types';
 
-const DB_PATH = process.env.DB_PATH || './data/cody.db';
+const DB_PATH = process.env.DB_PATH || './workspace/data/wukong.db';
 
-export class CodyDB {
+export class WukongDB {
   private db: Database;
 
   constructor(dbPath: string = DB_PATH) {
+    const dir = dirname(dbPath);
+    mkdirSync(dir, { recursive: true });
     this.db = new Database(dbPath, { create: true });
     this.init();
   }
@@ -92,6 +96,16 @@ export class CodyDB {
 
   close() {
     this.db.close();
+  }
+
+  // ============ Maintenance ============
+  clearSessions() {
+    try {
+        this.db.exec('DELETE FROM sessions');
+        console.log('[DB] All sessions cleared');
+    } catch (e) {
+        console.error('[DB] Failed to clear sessions:', e);
+    }
   }
 
   // ============ Sessions ============
@@ -458,11 +472,11 @@ export class CodyDB {
   }
 }
 
-let dbInstance: CodyDB | null = null;
+let dbInstance: WukongDB | null = null;
 
-export function getDB(): CodyDB {
+export function getDB(): WukongDB {
   if (!dbInstance) {
-    dbInstance = new CodyDB();
+    dbInstance = new WukongDB();
   }
   return dbInstance;
 }

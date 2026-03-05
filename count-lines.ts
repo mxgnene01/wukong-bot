@@ -157,6 +157,7 @@ function main() {
     );
   }
   console.log('');
+
   console.log('📈 总体统计');
   console.log('');
   console.log(`   总文件数: ${tsFiles.length.toLocaleString()}`);

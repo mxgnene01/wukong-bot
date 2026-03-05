@@ -88,4 +88,22 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_id ON workflow_runs(workflow_id);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  category TEXT, -- 'fact', 'preference', 'constraint'
+  confidence REAL DEFAULT 1.0,
+  created_at INTEGER,
+  updated_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS reflections (
+  id TEXT PRIMARY KEY,
+  task_id TEXT,
+  trigger TEXT, -- what caused the reflection
+  content TEXT, -- the insight
+  actionable_item TEXT, -- what to do differently
+  created_at INTEGER
+);
 `;

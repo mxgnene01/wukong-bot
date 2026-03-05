@@ -8,7 +8,9 @@ export function createContextBuilderMiddleware(): Middleware {
     priority: 10,
 
     async pre(ctx: MiddlewareContext) {
-      logger.info('[Middleware] context_builder called with:', ctx.event);
+      // [P5 Fix] 只打摘要，不打完整 event JSON
+      const eventId = ctx.event?.header?.event_id || 'unknown';
+      logger.debug(`[Middleware] context_builder processing event: ${eventId}`);
 
       if (!ctx.event || !ctx.event.header) {
         logger.warn('[Middleware] ctx.event or ctx.event.header missing:', ctx.event);
@@ -20,9 +22,8 @@ export function createContextBuilderMiddleware(): Middleware {
       ctx.content = extractMessageContent(ctx.event).trim();
       ctx.attachments = extractMessageAttachments(ctx.event);
 
-      logger.info('[Middleware] Context:', ctx.context);
-      logger.info('[Middleware] Content:', ctx.content);
-      logger.info('[Middleware] Attachments:', ctx.attachments);
+      logger.debug('[Middleware] Context built, content length:', ctx.content?.length || 0);
+      logger.debug('[Middleware] Attachments count:', ctx.attachments?.length || 0);
 
       // 只有纯空内容才停止（但有附件的消息可以继续处理）
       if (!ctx.content && (!ctx.attachments || ctx.attachments.length === 0)) {

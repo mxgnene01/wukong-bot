@@ -12,6 +12,7 @@ import { buildWelcomeCard, buildProgressCard, buildDailyStatsCard } from './card
 import { logger } from './utils/logger';
 import { getMemoryManager } from './session/memory';
 import { handleWorkflowTrigger } from './gateway/workflow-trigger';
+import { getThinkingClock } from './clock';
 import {
   startDailyStatsScheduler,
   stopDailyStatsScheduler,
@@ -45,6 +46,7 @@ const db = getDB();
 const queue = getQueue();
 const middlewarePipeline = createDefaultPipeline();
 const memoryManager = getMemoryManager();
+const thinkingClock = getThinkingClock();
 
 logger.log('='.repeat(60));
 logger.log(`${config.app.name} v${config.app.version}`);
@@ -62,6 +64,7 @@ getSkillLoader().start();
 const workerEngine = startWorker();
 startCronScheduler();
 // startDailyStatsScheduler(); // 移除自动启动，改为按需启动
+thinkingClock.start(); // 启动思考时钟
 
 async function main() {
   const eventSource = await createEventSource();
@@ -77,7 +80,10 @@ async function main() {
 }
 
 async function handleEvent(event: LarkMessageEvent) {
-  logger.log('[Main] handleEvent called with:', JSON.stringify(event, null, 2));
+  // [P5 Fix] 只打摘要，不打完整 JSON
+  const eventId = event.header?.event_id || 'unknown';
+  const msgId = event.event?.message?.message_id || 'unknown';
+  logger.log(`[Main] handleEvent: event_id=${eventId}, message_id=${msgId}`);
 
   const ctx: MiddlewareContext = {
     event,
@@ -270,6 +276,7 @@ process.on('SIGINT', async () => {
   stopWorker();
   stopAllTasks();
   stopDailyStatsScheduler();
+  thinkingClock.stop();
   db.close();
   process.exit(0);
 });
@@ -279,6 +286,7 @@ process.on('SIGTERM', async () => {
   stopWorker();
   stopAllTasks();
   stopDailyStatsScheduler();
+  thinkingClock.stop();
   db.close();
   process.exit(0);
 });

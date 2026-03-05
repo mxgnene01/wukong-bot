@@ -56,20 +56,12 @@ async function cleanupDatabase() {
     const taskRetention = 7 * ONE_DAY_MS;
     const taskThreshold = now - taskRetention;
     
-    // 注意：这里需要直接执行 SQL，因为 DB 类可能没有暴露清理方法
-    // 我们假设 DB 类暴露了 run 方法或者我们需要扩充 DB 类
-    // 查看 src/db/index.ts，它暴露了 run 方法吗？
-    // 通常 DB 类会封装 prepare/run。
-    // 为了不破坏封装，我们在 DB 类中添加 cleanup 方法更好。
-    
-    // 暂时先调用 db.cleanup() (我们稍后去实现它)
-    if (typeof (db as any).cleanup === 'function') {
-        const deleted = (db as any).cleanup(taskRetention);
-        if (deleted > 0) {
-            logger.info(`[Cleanup] Cleaned ${deleted} old database records`);
-        }
+    // 调用 DB 类的 cleanup 方法
+    const deleted = db.cleanup(taskRetention);
+    if (deleted > 0) {
+      logger.info(`[Cleanup] Cleaned ${deleted} old database records`);
     } else {
-        logger.warn('[Cleanup] DB cleanup method not implemented');
+      logger.info('[Cleanup] No old database records to clean');
     }
 
   } catch (error) {

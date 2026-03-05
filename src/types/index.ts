@@ -169,7 +169,11 @@ export interface AgentOptions {
   resumeSessionId?: string;
   streamOutput?: boolean;
   skipPermissions?: boolean;
+  isInternalCall?: boolean; // 内部 LLM 调用（Evaluator/Evolution）跳过 SAFETY_PROMPT，节省 ~400 tokens
+  isSimpleTask?: boolean;   // 简单任务（问候/查询）跳过 SAFETY_PROMPT，减少 prompt 噪音
   onStreamChunk?: (chunk: any) => void;
+  onProgress?: (message: string) => void;
+  signal?: AbortSignal; // 支持中止信号
 }
 
 // Token 使用数据
@@ -269,4 +273,25 @@ export interface MemoryExtractionResult {
     confidence: number;
   }>;
 }
+
+// 记忆项
+export interface Memory {
+  id: string;
+  content: string;
+  category: 'fact' | 'preference' | 'constraint';
+  confidence: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// 反思项
+export interface Reflection {
+  id: string;
+  taskId: string;
+  trigger: string;
+  content: string;
+  actionableItem: string;
+  createdAt: number;
+}
+
 

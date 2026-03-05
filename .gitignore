@@ -1,10 +1,10 @@
 node_modules
 dist
-data
 logs
 workspace
 !workspace/workflows/
 !workspace/skills/
+!workspace/data/
 backups
 .env
 .DS_Store
